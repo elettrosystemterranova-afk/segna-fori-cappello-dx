@@ -25,6 +25,7 @@ canvas#view{display:block;width:100%;height:auto;touch-action:none}
 .tips{font-size:13px;line-height:1.5;color:#444}.tips li{margin:3px 0}
 .small{font-size:12px;color:#666}
 [hidden]{display:none!important}
+input[type=number]{width:100%;font-size:16px;padding:8px;border-radius:8px;border:1px solid #bbb}
 button.big{font-size:18px;padding:18px 14px}
 button.on{background:#1b8a3a}
 </style></head><body>
@@ -69,6 +70,21 @@ button.on{background:#1b8a3a}
  <input type="range" id="thr" min="-60" max="60" value="0">
  <p class="small" id="info"></p>
 </div>
+<details class="card" id="misura">
+ <summary style="font-weight:700;font-size:15px;cursor:pointer;padding:4px 0">📏 Prova di misura (precisione reale)</summary>
+ <p class="small">Misura quanto sbaglia davvero il tuo telefono sul tuo cavalletto, fotografando un foglio con croci a distanza nota.</p>
+ <ol class="tips">
+  <li><a href="prova-misura-A4.pdf" download>Scarica il foglio di prova (PDF A4)</a> e stampalo al <b>100%</b> (dimensione reale, non "adatta alla pagina").</li>
+  <li>Col righello misura le due barre sul foglio (da tacca a tacca, al decimo di mm) e scrivi i valori:
+   <div class="row" style="margin-top:6px"><div><label for="mbh">Orizzontale (mm, nominale 150)</label><input type="number" id="mbh" step="0.1" value="150" inputmode="decimal"></div>
+   <div><label for="mbv">Verticale (mm, nominale 250)</label><input type="number" id="mbv" step="0.1" value="250" inputmode="decimal"></div></div></li>
+  <li>Appoggia il foglio dove metti di solito le sagome, telefono sul cavalletto alla <b>stessa altezza di sempre</b>, perpendicolare. Tutto il foglio nell'inquadratura, luce uniforme. Scatta.</li>
+ </ol>
+ <div class="row"><label class="btn" for="mcam">📷 Foto del foglio</label><label class="btn sec" for="mgal">Dalla galleria</label></div>
+ <input id="mcam" type="file" accept="image/*" capture="environment" hidden><input id="mgal" type="file" accept="image/*" hidden>
+ <canvas id="mcv" width="900" height="600" style="width:100%;height:auto;border-radius:10px;margin-top:8px;background:#111" hidden></canvas>
+ <pre id="mres" style="white-space:pre-wrap;font:13px/1.5 system-ui,sans-serif;margin:8px 0 0"></pre>
+</details>
 <div class="card tips"><b>Come si usa</b>
  <ol><li>Tocca un foro (A, B, C…) per ingrandirlo.</li>
  <li>Segna con la penna il centro della croce viola, guardando lo schermo fermo.</li>
@@ -236,7 +252,137 @@ function trackImage(rgba,w,h,tpl,opt,prev){
   var p=refine(tpl.poly,p0,ctx,{pos:3,th:0.01,s:0.01},{pos:0.05,th:0.0001,s:0.0001},400);
   return {pose:scalePose(p,w/d.w),iou:p.iou};
 }
-return {downscaleGray:downscaleGray,blur3:blur3,otsu:otsu,makeMask:makeMask,largest:largest,prefix:prefix,xform:xform,iou:iou,refine:refine,makeCtx:makeCtx,initFit:initFit,fitImage:fitImage,trackImage:trackImage,scalePose:scalePose};
+// ===== prova di misura: croci stampate a coordinate note (foglio generato da tools/genera_prova_misura.py) =====
+// Trova le croci nella foto e confronta le posizioni previste con quelle rilevate, in mm sul piano del foglio.
+function gray8(rgba,w,h){var g=new Uint8Array(w*h);for(var i=0,j=0;i<g.length;i++,j+=4)g[i]=0.299*rgba[j]+0.587*rgba[j+1]+0.114*rgba[j+2];return g;}
+// macchie di inchiostro: pixel molto piu' scuri della media locale (regge luce non uniforme), 8-connesse
+function inkBlobs(g,w,h){
+  var gb=blur3(g,w,h),win=Math.max(15,Math.round(w/20))|1,r=(win-1)>>1,W1=w+1,I=new Float64Array(W1*(h+1)),x,y;
+  for(y=0;y<h;y++){var s=0;for(x=0;x<w;x++){s+=gb[y*w+x];I[(y+1)*W1+x+1]=I[y*W1+x+1]+s;}}
+  var m=new Uint8Array(w*h);
+  for(y=0;y<h;y++){var y0=Math.max(0,y-r),y1=Math.min(h,y+r+1);
+    for(x=0;x<w;x++){var x0=Math.max(0,x-r),x1=Math.min(w,x+r+1);
+      var mean=(I[y1*W1+x1]-I[y0*W1+x1]-I[y1*W1+x0]+I[y0*W1+x0])/((x1-x0)*(y1-y0));
+      if(gb[y*w+x]<0.7*mean)m[y*w+x]=1;}}
+  var lab=new Uint8Array(w*h),stack=new Int32Array(w*h),out=[];
+  for(var st=0;st<m.length;st++){
+    if(!m[st]||lab[st])continue;
+    var sp=0,b={n:0,x0:w,y0:h,x1:0,y1:0};stack[sp++]=st;lab[st]=1;
+    while(sp){var p=stack[--sp],px=p%w,py=(p-px)/w;b.n++;
+      if(px<b.x0)b.x0=px;if(px>b.x1)b.x1=px;if(py<b.y0)b.y0=py;if(py>b.y1)b.y1=py;
+      for(var dy=-1;dy<=1;dy++){var qy=py+dy;if(qy<0||qy>=h)continue;
+        for(var dx=-1;dx<=1;dx++){var qx=px+dx;if(qx<0||qx>=w)continue;var q=qy*w+qx;
+          if(m[q]&&!lab[q]){lab[q]=1;stack[sp++]=q;}}}}
+    if(b.n>=4)out.push(b);
+  }
+  return out;
+}
+// centro con precisione sub-pixel: baricentro dello "scuro" (sfondo - grigio) nella finestra della macchia
+function blobCenter(g,w,h,b){
+  var mg=Math.max(2,Math.ceil(0.25*Math.max(b.x1-b.x0,b.y1-b.y0))),x0=Math.max(0,b.x0-mg),x1=Math.min(w-1,b.x1+mg),y0=Math.max(0,b.y0-mg),y1=Math.min(h-1,b.y1+mg),v=[],x,y;
+  for(y=y0;y<=y1;y++)for(x=x0;x<=x1;x++)v.push(g[y*w+x]);
+  v.sort(function(a,c){return a-c;});
+  var half=v.length>>1,bg=0,k;for(k=half;k<v.length;k++)bg+=v[k];bg/=(v.length-half);
+  var nd=Math.max(1,Math.floor(v.length*0.03)),dk=0;for(k=0;k<nd;k++)dk+=v[k];dk/=nd;
+  var t0=0.3*(bg-dk),sw=0,sx=0,sy=0;
+  for(y=y0;y<=y1;y++)for(x=x0;x<=x1;x++){var wt=bg-g[y*w+x]-t0;if(wt>0){sw+=wt;sx+=wt*(x+0.5);sy+=wt*(y+0.5);}}
+  return sw>0?[sx/sw,sy/sw]:[(b.x0+b.x1+1)/2,(b.y0+b.y1+1)/2];
+}
+function solveLin(A,b){ // eliminazione di Gauss con pivot parziale, A n x n
+  var n=b.length,i,j,k;A=A.map(function(r){return r.slice();});b=b.slice();
+  for(i=0;i<n;i++){var pv=i;for(j=i+1;j<n;j++)if(Math.abs(A[j][i])>Math.abs(A[pv][i]))pv=j;
+    var t=A[i];A[i]=A[pv];A[pv]=t;var tb=b[i];b[i]=b[pv];b[pv]=tb;
+    if(Math.abs(A[i][i])<1e-12)return null;
+    for(j=i+1;j<n;j++){var f=A[j][i]/A[i][i];for(k=i;k<n;k++)A[j][k]-=f*A[i][k];b[j]-=f*b[i];}}
+  var x=new Array(n);
+  for(i=n-1;i>=0;i--){var s=b[i];for(j=i+1;j<n;j++)s-=A[i][j]*x[j];x[i]=s/A[i][i];}
+  return x;
+}
+function inv3(H){
+  var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7],i=H[8],A=e*i-f*h,B=-(d*i-f*g),C=d*h-e*g,det=a*A+b*B+c*C;
+  if(Math.abs(det)<1e-18)return null;
+  return [A/det,-(b*i-c*h)/det,(b*f-c*e)/det,B/det,(a*i-c*g)/det,-(a*f-c*d)/det,C/det,-(a*h-b*g)/det,(a*e-b*d)/det];
+}
+function app3(H,x,y){var w=H[6]*x+H[7]*y+H[8];return [(H[0]*x+H[1]*y+H[2])/w,(H[3]*x+H[4]*y+H[5])/w];}
+function mul3(A,B){var o=[],i,j;for(i=0;i<3;i++)for(j=0;j<3;j++)o.push(A[i*3]*B[j]+A[i*3+1]*B[3+j]+A[i*3+2]*B[6+j]);return o;}
+function normT(pts){var cx=0,cy=0,i;for(i=0;i<pts.length;i++){cx+=pts[i][0];cy+=pts[i][1];}cx/=pts.length;cy/=pts.length;
+  var d=0;for(i=0;i<pts.length;i++)d+=Math.hypot(pts[i][0]-cx,pts[i][1]-cy);d/=pts.length;var s=Math.SQRT2/d;return [s,0,-s*cx,0,s,-s*cy,0,0,1];}
+// omografia (prospettiva) foglio -> immagine, minimi quadrati con normalizzazione
+function fitHom(P,Q){
+  var Tp=normT(P),Tq=normT(Q),n=P.length,AtA=[],Atb=[],i,j,k;
+  for(i=0;i<8;i++){AtA.push(new Array(8).fill(0));Atb.push(0);}
+  for(k=0;k<n;k++){
+    var p=app3(Tp,P[k][0],P[k][1]),q=app3(Tq,Q[k][0],Q[k][1]),x=p[0],y=p[1],u=q[0],v=q[1];
+    var rows=[[[x,y,1,0,0,0,-u*x,-u*y],u],[[0,0,0,x,y,1,-v*x,-v*y],v]];
+    for(var r=0;r<2;r++){var row=rows[r][0],bb=rows[r][1];for(i=0;i<8;i++){Atb[i]+=row[i]*bb;for(j=0;j<8;j++)AtA[i][j]+=row[i]*row[j];}}
+  }
+  var h=solveLin(AtA,Atb);if(!h)return null;
+  var Hn=[h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1],Tqi=inv3(Tq);if(!Tqi)return null;
+  return mul3(Tqi,mul3(Hn,Tp));
+}
+// similitudine (rotazione + scala + traslazione), come il modello usato dall'app per le sagome: Q = a*P + b (numeri complessi)
+function fitSim(P,Q){
+  var n=P.length,pcx=0,pcy=0,qcx=0,qcy=0,i;
+  for(i=0;i<n;i++){pcx+=P[i][0];pcy+=P[i][1];qcx+=Q[i][0];qcy+=Q[i][1];}
+  pcx/=n;pcy/=n;qcx/=n;qcy/=n;
+  var nr=0,ni=0,den=0;
+  for(i=0;i<n;i++){var px=P[i][0]-pcx,py=P[i][1]-pcy,qx=Q[i][0]-qcx,qy=Q[i][1]-qcy;nr+=px*qx+py*qy;ni+=px*qy-py*qx;den+=px*px+py*py;}
+  var ar=nr/den,ai=ni/den;
+  return {ar:ar,ai:ai,bx:qcx-(ar*pcx-ai*pcy),by:qcy-(ai*pcx+ar*pcy),scale:Math.hypot(ar,ai),rot:Math.atan2(ai,ar)};
+}
+function statErr(vs){var n=vs.length,s=0,s2=0,mx=0;for(var i=0;i<n;i++){var e=Math.hypot(vs[i][0],vs[i][1]);s+=e;s2+=e*e;if(e>mx)mx=e;}return {mean:s/n,rms:Math.sqrt(s2/n),max:mx};}
+// layout = contenuto di src/prova_misura.json; opt.fx / opt.fy = misura reale delle barre / nominale (correzione di stampa)
+function misuraProva(rgba,w,h,layout,opt){
+  opt=opt||{};var fx=opt.fx||1,fy=opt.fy||1;
+  var g=gray8(rgba,w,h),blobs=inkBlobs(g,w,h),cand=[],i,j;
+  blobs.forEach(function(b){var bw=b.x1-b.x0+1,bh=b.y1-b.y0+1;
+    if(bw<3||bh<3||bw>0.3*w||bh>0.3*h||Math.max(bw,bh)/Math.min(bw,bh)>1.6)return;
+    b.fill=b.n/(bw*bh);cand.push(b);});
+  var discs=cand.filter(function(b){return b.fill>=0.55;}).sort(function(a,b){return b.n-a.n;}).slice(0,3);
+  if(discs.length<3)return {error:'Non trovo i tre dischi neri agli angoli del foglio: inquadra tutto il foglio, con luce uniforme.'};
+  var anc=['TL','TR','BL'].map(function(id){return layout.punti.filter(function(p){return p.id===id;})[0];});
+  var dc=discs.map(function(b){return blobCenter(g,w,h,b);});
+  var P0=anc[0],P1=anc[1],P2=anc[2],Q0=dc[0],Q1=dc[1],Q2=dc[2];
+  // affine di partenza dai tre dischi (il piu' grande = TL, poi TR, poi BL)
+  var ux=P1.x-P0.x,uy=P1.y-P0.y,vx=P2.x-P0.x,vy=P2.y-P0.y,det=ux*vy-uy*vx;
+  var e1x=Q1[0]-Q0[0],e1y=Q1[1]-Q0[1],e2x=Q2[0]-Q0[0],e2y=Q2[1]-Q0[1];
+  var A=[(e1x*vy-e2x*uy)/det,(-e1x*vx+e2x*ux)/det,(e1y*vy-e2y*uy)/det,(-e1y*vx+e2y*ux)/det];
+  var dA=A[0]*A[3]-A[1]*A[2];
+  if(!(dA>0))return {error:'Non riconosco come è girato il foglio (dischi). Riprova con il foglio intero e ben visibile.'};
+  var sc=Math.sqrt(dA),tol=0.3*layout.passo*sc,used={},pairs=[],ids=[],missing=[];
+  var pool=cand.filter(function(b){return discs.indexOf(b)<0;});
+  layout.punti.forEach(function(p){
+    var pr,k=-1,best=tol;
+    if(p.id==='TL'||p.id==='TR'||p.id==='BL'){var ia=['TL','TR','BL'].indexOf(p.id);pairs.push({p:p,q:dc[ia]});return;}
+    pr=[Q0[0]+A[0]*(p.x-P0.x)+A[1]*(p.y-P0.y),Q0[1]+A[2]*(p.x-P0.x)+A[3]*(p.y-P0.y)];
+    for(j=0;j<pool.length;j++){if(used[j])continue;var b=pool[j],cx=(b.x0+b.x1+1)/2,cy=(b.y0+b.y1+1)/2,d=Math.hypot(cx-pr[0],cy-pr[1]);if(d<best){best=d;k=j;}}
+    if(k<0){missing.push(p.id);return;}
+    used[k]=1;pairs.push({p:p,q:blobCenter(g,w,h,pool[k])});
+  });
+  // seconda passata: con la prospettiva stimata dai punti gia' trovati si recuperano quelli mancanti (foto molto inclinate)
+  if(missing.length&&pairs.length>=6){
+    var H0=fitHom(pairs.map(function(r){return [r.p.x,r.p.y];}),pairs.map(function(r){return r.q;}));
+    if(H0){var still=[];
+      missing.forEach(function(id){
+        var p=layout.punti.filter(function(z){return z.id===id;})[0],pr=app3(H0,p.x,p.y),k=-1,best=0.3*layout.passo*sc;
+        for(j=0;j<pool.length;j++){if(used[j])continue;var b=pool[j],d=Math.hypot((b.x0+b.x1+1)/2-pr[0],(b.y0+b.y1+1)/2-pr[1]);if(d<best){best=d;k=j;}}
+        if(k<0){still.push(id);return;}
+        used[k]=1;pairs.push({p:p,q:blobCenter(g,w,h,pool[k])});});
+      missing=still;}
+  }
+  if(pairs.length<8)return {error:'Ho trovato solo '+pairs.length+' punti su '+layout.punti.length+': avvicinati o migliora la luce.',found:pairs.length};
+  var P=pairs.map(function(r){return [r.p.x*fx,r.p.y*fy];}),Q=pairs.map(function(r){return r.q;});
+  var sim=fitSim(P,Q),hom=fitHom(P,Q),Hi=hom?inv3(hom):null;
+  if(!hom||!Hi)return {error:'Calcolo della prospettiva non riuscito.'};
+  var m2=sim.ar*sim.ar+sim.ai*sim.ai,eS=[],eH=[],pts=[];
+  for(i=0;i<pairs.length;i++){
+    var dx=Q[i][0]-sim.bx,dy=Q[i][1]-sim.by,zx=(dx*sim.ar+dy*sim.ai)/m2,zy=(dy*sim.ar-dx*sim.ai)/m2,hp=app3(Hi,Q[i][0],Q[i][1]);
+    var vs=[zx-P[i][0],zy-P[i][1]],vh=[hp[0]-P[i][0],hp[1]-P[i][1]];
+    eS.push(vs);eH.push(vh);pts.push({id:pairs[i].p.id,paper:P[i],img:Q[i],eSim:vs,eHom:vh});
+  }
+  return {found:pairs.length,expected:layout.punti.length,missing:missing,scale:sim.scale,rot:sim.rot,sim:statErr(eS),hom:statErr(eH),pts:pts,H:hom};
+}
+return {downscaleGray:downscaleGray,blur3:blur3,otsu:otsu,makeMask:makeMask,largest:largest,prefix:prefix,xform:xform,iou:iou,refine:refine,makeCtx:makeCtx,initFit:initFit,fitImage:fitImage,trackImage:trackImage,scalePose:scalePose,misuraProva:misuraProva,app3:app3,inv3:inv3};
 })();
 if(typeof module!=='undefined')module.exports=Core;
 
@@ -401,7 +547,137 @@ function trackImage(rgba,w,h,tpl,opt,prev){
   var p=refine(tpl.poly,p0,ctx,{pos:3,th:0.01,s:0.01},{pos:0.05,th:0.0001,s:0.0001},400);
   return {pose:scalePose(p,w/d.w),iou:p.iou};
 }
-return {downscaleGray:downscaleGray,blur3:blur3,otsu:otsu,makeMask:makeMask,largest:largest,prefix:prefix,xform:xform,iou:iou,refine:refine,makeCtx:makeCtx,initFit:initFit,fitImage:fitImage,trackImage:trackImage,scalePose:scalePose};
+// ===== prova di misura: croci stampate a coordinate note (foglio generato da tools/genera_prova_misura.py) =====
+// Trova le croci nella foto e confronta le posizioni previste con quelle rilevate, in mm sul piano del foglio.
+function gray8(rgba,w,h){var g=new Uint8Array(w*h);for(var i=0,j=0;i<g.length;i++,j+=4)g[i]=0.299*rgba[j]+0.587*rgba[j+1]+0.114*rgba[j+2];return g;}
+// macchie di inchiostro: pixel molto piu' scuri della media locale (regge luce non uniforme), 8-connesse
+function inkBlobs(g,w,h){
+  var gb=blur3(g,w,h),win=Math.max(15,Math.round(w/20))|1,r=(win-1)>>1,W1=w+1,I=new Float64Array(W1*(h+1)),x,y;
+  for(y=0;y<h;y++){var s=0;for(x=0;x<w;x++){s+=gb[y*w+x];I[(y+1)*W1+x+1]=I[y*W1+x+1]+s;}}
+  var m=new Uint8Array(w*h);
+  for(y=0;y<h;y++){var y0=Math.max(0,y-r),y1=Math.min(h,y+r+1);
+    for(x=0;x<w;x++){var x0=Math.max(0,x-r),x1=Math.min(w,x+r+1);
+      var mean=(I[y1*W1+x1]-I[y0*W1+x1]-I[y1*W1+x0]+I[y0*W1+x0])/((x1-x0)*(y1-y0));
+      if(gb[y*w+x]<0.7*mean)m[y*w+x]=1;}}
+  var lab=new Uint8Array(w*h),stack=new Int32Array(w*h),out=[];
+  for(var st=0;st<m.length;st++){
+    if(!m[st]||lab[st])continue;
+    var sp=0,b={n:0,x0:w,y0:h,x1:0,y1:0};stack[sp++]=st;lab[st]=1;
+    while(sp){var p=stack[--sp],px=p%w,py=(p-px)/w;b.n++;
+      if(px<b.x0)b.x0=px;if(px>b.x1)b.x1=px;if(py<b.y0)b.y0=py;if(py>b.y1)b.y1=py;
+      for(var dy=-1;dy<=1;dy++){var qy=py+dy;if(qy<0||qy>=h)continue;
+        for(var dx=-1;dx<=1;dx++){var qx=px+dx;if(qx<0||qx>=w)continue;var q=qy*w+qx;
+          if(m[q]&&!lab[q]){lab[q]=1;stack[sp++]=q;}}}}
+    if(b.n>=4)out.push(b);
+  }
+  return out;
+}
+// centro con precisione sub-pixel: baricentro dello "scuro" (sfondo - grigio) nella finestra della macchia
+function blobCenter(g,w,h,b){
+  var mg=Math.max(2,Math.ceil(0.25*Math.max(b.x1-b.x0,b.y1-b.y0))),x0=Math.max(0,b.x0-mg),x1=Math.min(w-1,b.x1+mg),y0=Math.max(0,b.y0-mg),y1=Math.min(h-1,b.y1+mg),v=[],x,y;
+  for(y=y0;y<=y1;y++)for(x=x0;x<=x1;x++)v.push(g[y*w+x]);
+  v.sort(function(a,c){return a-c;});
+  var half=v.length>>1,bg=0,k;for(k=half;k<v.length;k++)bg+=v[k];bg/=(v.length-half);
+  var nd=Math.max(1,Math.floor(v.length*0.03)),dk=0;for(k=0;k<nd;k++)dk+=v[k];dk/=nd;
+  var t0=0.3*(bg-dk),sw=0,sx=0,sy=0;
+  for(y=y0;y<=y1;y++)for(x=x0;x<=x1;x++){var wt=bg-g[y*w+x]-t0;if(wt>0){sw+=wt;sx+=wt*(x+0.5);sy+=wt*(y+0.5);}}
+  return sw>0?[sx/sw,sy/sw]:[(b.x0+b.x1+1)/2,(b.y0+b.y1+1)/2];
+}
+function solveLin(A,b){ // eliminazione di Gauss con pivot parziale, A n x n
+  var n=b.length,i,j,k;A=A.map(function(r){return r.slice();});b=b.slice();
+  for(i=0;i<n;i++){var pv=i;for(j=i+1;j<n;j++)if(Math.abs(A[j][i])>Math.abs(A[pv][i]))pv=j;
+    var t=A[i];A[i]=A[pv];A[pv]=t;var tb=b[i];b[i]=b[pv];b[pv]=tb;
+    if(Math.abs(A[i][i])<1e-12)return null;
+    for(j=i+1;j<n;j++){var f=A[j][i]/A[i][i];for(k=i;k<n;k++)A[j][k]-=f*A[i][k];b[j]-=f*b[i];}}
+  var x=new Array(n);
+  for(i=n-1;i>=0;i--){var s=b[i];for(j=i+1;j<n;j++)s-=A[i][j]*x[j];x[i]=s/A[i][i];}
+  return x;
+}
+function inv3(H){
+  var a=H[0],b=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7],i=H[8],A=e*i-f*h,B=-(d*i-f*g),C=d*h-e*g,det=a*A+b*B+c*C;
+  if(Math.abs(det)<1e-18)return null;
+  return [A/det,-(b*i-c*h)/det,(b*f-c*e)/det,B/det,(a*i-c*g)/det,-(a*f-c*d)/det,C/det,-(a*h-b*g)/det,(a*e-b*d)/det];
+}
+function app3(H,x,y){var w=H[6]*x+H[7]*y+H[8];return [(H[0]*x+H[1]*y+H[2])/w,(H[3]*x+H[4]*y+H[5])/w];}
+function mul3(A,B){var o=[],i,j;for(i=0;i<3;i++)for(j=0;j<3;j++)o.push(A[i*3]*B[j]+A[i*3+1]*B[3+j]+A[i*3+2]*B[6+j]);return o;}
+function normT(pts){var cx=0,cy=0,i;for(i=0;i<pts.length;i++){cx+=pts[i][0];cy+=pts[i][1];}cx/=pts.length;cy/=pts.length;
+  var d=0;for(i=0;i<pts.length;i++)d+=Math.hypot(pts[i][0]-cx,pts[i][1]-cy);d/=pts.length;var s=Math.SQRT2/d;return [s,0,-s*cx,0,s,-s*cy,0,0,1];}
+// omografia (prospettiva) foglio -> immagine, minimi quadrati con normalizzazione
+function fitHom(P,Q){
+  var Tp=normT(P),Tq=normT(Q),n=P.length,AtA=[],Atb=[],i,j,k;
+  for(i=0;i<8;i++){AtA.push(new Array(8).fill(0));Atb.push(0);}
+  for(k=0;k<n;k++){
+    var p=app3(Tp,P[k][0],P[k][1]),q=app3(Tq,Q[k][0],Q[k][1]),x=p[0],y=p[1],u=q[0],v=q[1];
+    var rows=[[[x,y,1,0,0,0,-u*x,-u*y],u],[[0,0,0,x,y,1,-v*x,-v*y],v]];
+    for(var r=0;r<2;r++){var row=rows[r][0],bb=rows[r][1];for(i=0;i<8;i++){Atb[i]+=row[i]*bb;for(j=0;j<8;j++)AtA[i][j]+=row[i]*row[j];}}
+  }
+  var h=solveLin(AtA,Atb);if(!h)return null;
+  var Hn=[h[0],h[1],h[2],h[3],h[4],h[5],h[6],h[7],1],Tqi=inv3(Tq);if(!Tqi)return null;
+  return mul3(Tqi,mul3(Hn,Tp));
+}
+// similitudine (rotazione + scala + traslazione), come il modello usato dall'app per le sagome: Q = a*P + b (numeri complessi)
+function fitSim(P,Q){
+  var n=P.length,pcx=0,pcy=0,qcx=0,qcy=0,i;
+  for(i=0;i<n;i++){pcx+=P[i][0];pcy+=P[i][1];qcx+=Q[i][0];qcy+=Q[i][1];}
+  pcx/=n;pcy/=n;qcx/=n;qcy/=n;
+  var nr=0,ni=0,den=0;
+  for(i=0;i<n;i++){var px=P[i][0]-pcx,py=P[i][1]-pcy,qx=Q[i][0]-qcx,qy=Q[i][1]-qcy;nr+=px*qx+py*qy;ni+=px*qy-py*qx;den+=px*px+py*py;}
+  var ar=nr/den,ai=ni/den;
+  return {ar:ar,ai:ai,bx:qcx-(ar*pcx-ai*pcy),by:qcy-(ai*pcx+ar*pcy),scale:Math.hypot(ar,ai),rot:Math.atan2(ai,ar)};
+}
+function statErr(vs){var n=vs.length,s=0,s2=0,mx=0;for(var i=0;i<n;i++){var e=Math.hypot(vs[i][0],vs[i][1]);s+=e;s2+=e*e;if(e>mx)mx=e;}return {mean:s/n,rms:Math.sqrt(s2/n),max:mx};}
+// layout = contenuto di src/prova_misura.json; opt.fx / opt.fy = misura reale delle barre / nominale (correzione di stampa)
+function misuraProva(rgba,w,h,layout,opt){
+  opt=opt||{};var fx=opt.fx||1,fy=opt.fy||1;
+  var g=gray8(rgba,w,h),blobs=inkBlobs(g,w,h),cand=[],i,j;
+  blobs.forEach(function(b){var bw=b.x1-b.x0+1,bh=b.y1-b.y0+1;
+    if(bw<3||bh<3||bw>0.3*w||bh>0.3*h||Math.max(bw,bh)/Math.min(bw,bh)>1.6)return;
+    b.fill=b.n/(bw*bh);cand.push(b);});
+  var discs=cand.filter(function(b){return b.fill>=0.55;}).sort(function(a,b){return b.n-a.n;}).slice(0,3);
+  if(discs.length<3)return {error:'Non trovo i tre dischi neri agli angoli del foglio: inquadra tutto il foglio, con luce uniforme.'};
+  var anc=['TL','TR','BL'].map(function(id){return layout.punti.filter(function(p){return p.id===id;})[0];});
+  var dc=discs.map(function(b){return blobCenter(g,w,h,b);});
+  var P0=anc[0],P1=anc[1],P2=anc[2],Q0=dc[0],Q1=dc[1],Q2=dc[2];
+  // affine di partenza dai tre dischi (il piu' grande = TL, poi TR, poi BL)
+  var ux=P1.x-P0.x,uy=P1.y-P0.y,vx=P2.x-P0.x,vy=P2.y-P0.y,det=ux*vy-uy*vx;
+  var e1x=Q1[0]-Q0[0],e1y=Q1[1]-Q0[1],e2x=Q2[0]-Q0[0],e2y=Q2[1]-Q0[1];
+  var A=[(e1x*vy-e2x*uy)/det,(-e1x*vx+e2x*ux)/det,(e1y*vy-e2y*uy)/det,(-e1y*vx+e2y*ux)/det];
+  var dA=A[0]*A[3]-A[1]*A[2];
+  if(!(dA>0))return {error:'Non riconosco come è girato il foglio (dischi). Riprova con il foglio intero e ben visibile.'};
+  var sc=Math.sqrt(dA),tol=0.3*layout.passo*sc,used={},pairs=[],ids=[],missing=[];
+  var pool=cand.filter(function(b){return discs.indexOf(b)<0;});
+  layout.punti.forEach(function(p){
+    var pr,k=-1,best=tol;
+    if(p.id==='TL'||p.id==='TR'||p.id==='BL'){var ia=['TL','TR','BL'].indexOf(p.id);pairs.push({p:p,q:dc[ia]});return;}
+    pr=[Q0[0]+A[0]*(p.x-P0.x)+A[1]*(p.y-P0.y),Q0[1]+A[2]*(p.x-P0.x)+A[3]*(p.y-P0.y)];
+    for(j=0;j<pool.length;j++){if(used[j])continue;var b=pool[j],cx=(b.x0+b.x1+1)/2,cy=(b.y0+b.y1+1)/2,d=Math.hypot(cx-pr[0],cy-pr[1]);if(d<best){best=d;k=j;}}
+    if(k<0){missing.push(p.id);return;}
+    used[k]=1;pairs.push({p:p,q:blobCenter(g,w,h,pool[k])});
+  });
+  // seconda passata: con la prospettiva stimata dai punti gia' trovati si recuperano quelli mancanti (foto molto inclinate)
+  if(missing.length&&pairs.length>=6){
+    var H0=fitHom(pairs.map(function(r){return [r.p.x,r.p.y];}),pairs.map(function(r){return r.q;}));
+    if(H0){var still=[];
+      missing.forEach(function(id){
+        var p=layout.punti.filter(function(z){return z.id===id;})[0],pr=app3(H0,p.x,p.y),k=-1,best=0.3*layout.passo*sc;
+        for(j=0;j<pool.length;j++){if(used[j])continue;var b=pool[j],d=Math.hypot((b.x0+b.x1+1)/2-pr[0],(b.y0+b.y1+1)/2-pr[1]);if(d<best){best=d;k=j;}}
+        if(k<0){still.push(id);return;}
+        used[k]=1;pairs.push({p:p,q:blobCenter(g,w,h,pool[k])});});
+      missing=still;}
+  }
+  if(pairs.length<8)return {error:'Ho trovato solo '+pairs.length+' punti su '+layout.punti.length+': avvicinati o migliora la luce.',found:pairs.length};
+  var P=pairs.map(function(r){return [r.p.x*fx,r.p.y*fy];}),Q=pairs.map(function(r){return r.q;});
+  var sim=fitSim(P,Q),hom=fitHom(P,Q),Hi=hom?inv3(hom):null;
+  if(!hom||!Hi)return {error:'Calcolo della prospettiva non riuscito.'};
+  var m2=sim.ar*sim.ar+sim.ai*sim.ai,eS=[],eH=[],pts=[];
+  for(i=0;i<pairs.length;i++){
+    var dx=Q[i][0]-sim.bx,dy=Q[i][1]-sim.by,zx=(dx*sim.ar+dy*sim.ai)/m2,zy=(dy*sim.ar-dx*sim.ai)/m2,hp=app3(Hi,Q[i][0],Q[i][1]);
+    var vs=[zx-P[i][0],zy-P[i][1]],vh=[hp[0]-P[i][0],hp[1]-P[i][1]];
+    eS.push(vs);eH.push(vh);pts.push({id:pairs[i].p.id,paper:P[i],img:Q[i],eSim:vs,eHom:vh});
+  }
+  return {found:pairs.length,expected:layout.punti.length,missing:missing,scale:sim.scale,rot:sim.rot,sim:statErr(eS),hom:statErr(eH),pts:pts,H:hom};
+}
+return {downscaleGray:downscaleGray,blur3:blur3,otsu:otsu,makeMask:makeMask,largest:largest,prefix:prefix,xform:xform,iou:iou,refine:refine,makeCtx:makeCtx,initFit:initFit,fitImage:fitImage,trackImage:trackImage,scalePose:scalePose,misuraProva:misuraProva,app3:app3,inv3:inv3};
 })();
 if(typeof module!=='undefined')module.exports=Core;
 
@@ -650,5 +926,42 @@ function stopLive(){
   live=null;liveBtn.textContent='Video live';liveBar.hidden=true;torchBtn.hidden=true;
   msg.textContent='Video fermato. L\'ultimo fotogramma resta a schermo.';
 }
+// ===== prova di misura =====
+var PROVA={"A4":[210,297],"braccio":8.0,"spessore":0.6,"passo":35.0,"cols":5,"righe":7,"barra_h":150.0,"barra_v":250.0,"punti":[{"id":"TL","x":35.0,"y":45.0,"tipo":"disco","d":10.0},{"id":"R1C2","x":70.0,"y":45.0,"tipo":"croce"},{"id":"R1C3","x":105.0,"y":45.0,"tipo":"croce"},{"id":"R1C4","x":140.0,"y":45.0,"tipo":"croce"},{"id":"TR","x":175.0,"y":45.0,"tipo":"disco","d":7.0},{"id":"R2C1","x":35.0,"y":80.0,"tipo":"croce"},{"id":"R2C2","x":70.0,"y":80.0,"tipo":"croce"},{"id":"R2C3","x":105.0,"y":80.0,"tipo":"croce"},{"id":"R2C4","x":140.0,"y":80.0,"tipo":"croce"},{"id":"R2C5","x":175.0,"y":80.0,"tipo":"croce"},{"id":"R3C1","x":35.0,"y":115.0,"tipo":"croce"},{"id":"R3C2","x":70.0,"y":115.0,"tipo":"croce"},{"id":"R3C3","x":105.0,"y":115.0,"tipo":"croce"},{"id":"R3C4","x":140.0,"y":115.0,"tipo":"croce"},{"id":"R3C5","x":175.0,"y":115.0,"tipo":"croce"},{"id":"R4C1","x":35.0,"y":150.0,"tipo":"croce"},{"id":"R4C2","x":70.0,"y":150.0,"tipo":"croce"},{"id":"R4C3","x":105.0,"y":150.0,"tipo":"croce"},{"id":"R4C4","x":140.0,"y":150.0,"tipo":"croce"},{"id":"R4C5","x":175.0,"y":150.0,"tipo":"croce"},{"id":"R5C1","x":35.0,"y":185.0,"tipo":"croce"},{"id":"R5C2","x":70.0,"y":185.0,"tipo":"croce"},{"id":"R5C3","x":105.0,"y":185.0,"tipo":"croce"},{"id":"R5C4","x":140.0,"y":185.0,"tipo":"croce"},{"id":"R5C5","x":175.0,"y":185.0,"tipo":"croce"},{"id":"R6C1","x":35.0,"y":220.0,"tipo":"croce"},{"id":"R6C2","x":70.0,"y":220.0,"tipo":"croce"},{"id":"R6C3","x":105.0,"y":220.0,"tipo":"croce"},{"id":"R6C4","x":140.0,"y":220.0,"tipo":"croce"},{"id":"R6C5","x":175.0,"y":220.0,"tipo":"croce"},{"id":"BL","x":35.0,"y":255.0,"tipo":"disco","d":5.0},{"id":"R7C2","x":70.0,"y":255.0,"tipo":"croce"},{"id":"R7C3","x":105.0,"y":255.0,"tipo":"croce"},{"id":"R7C4","x":140.0,"y":255.0,"tipo":"croce"},{"id":"R7C5","x":175.0,"y":255.0,"tipo":"croce"}]};
+function f2(v){return v.toFixed(2).replace('.',',');}
+function misuraFile(f){
+  if(!f)return;var out=document.getElementById('mres');out.textContent='Carico la foto…';
+  var img=new Image();img.onload=function(){
+    var W=Math.min(img.naturalWidth,2000),H=Math.round(img.naturalHeight*W/img.naturalWidth);
+    var c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').drawImage(img,0,0,W,H);URL.revokeObjectURL(img.src);
+    out.textContent='Cerco le croci…';
+    setTimeout(function(){misuraMostra(c);},30);};
+  img.onerror=function(){out.textContent='Foto non leggibile.';};
+  img.src=URL.createObjectURL(f);
+}
+function misuraMostra(c){
+  var out=document.getElementById('mres'),mcv=document.getElementById('mcv'),W=c.width,H=c.height;
+  var bh=parseFloat(document.getElementById('mbh').value),bv=parseFloat(document.getElementById('mbv').value);
+  if(!(bh>100&&bh<200&&bv>180&&bv<320)){out.textContent='Controlla le misure delle barre: devono essere vicine a 150 e 250 mm.';return;}
+  var id=c.getContext('2d').getImageData(0,0,W,H),r=Core.misuraProva(id.data,W,H,PROVA,{fx:bh/PROVA.barra_h,fy:bv/PROVA.barra_v});
+  mcv.hidden=false;mcv.width=W;mcv.height=H;var x=mcv.getContext('2d');x.drawImage(c,0,0);
+  if(r.error){out.textContent=r.error;return;}
+  var k=r.scale,ar=k*Math.cos(r.rot),ai=k*Math.sin(r.rot),lw=Math.max(1.5,W/700);
+  r.pts.forEach(function(p){ // pallino = croce trovata; linea rossa = errore del modello dell'app, ingrandito 10 volte
+    x.strokeStyle='#2fe06b';x.lineWidth=lw;x.beginPath();x.arc(p.img[0],p.img[1],lw*4,0,6.2832);x.stroke();
+    var vx=p.eSim[0]*10,vy=p.eSim[1]*10;x.strokeStyle='#ff3b30';x.lineWidth=lw*1.6;x.beginPath();x.moveTo(p.img[0],p.img[1]);x.lineTo(p.img[0]+ar*vx-ai*vy,p.img[1]+ai*vx+ar*vy);x.stroke();});
+  var t='Croci trovate: '+r.found+' su '+r.expected+(r.missing.length?' (mancano: '+r.missing.join(', ')+')':'')+'\n'
+   +'Scala: '+f2(r.scale)+' px/mm (≈ '+f2(1/r.scale)+' mm per pixel) · foto '+W+'×'+H+'\n\n'
+   +'ERRORE DI POSIZIONE (sul piano del foglio)\n'
+   +'• Come calcola oggi l\'app (sposta + ruota + scala):\n    medio '+f2(r.sim.mean)+' mm · massimo '+f2(r.sim.max)+' mm\n'
+   +'• Con la prospettiva corretta:\n    medio '+f2(r.hom.mean)+' mm · massimo '+f2(r.hom.max)+' mm\n\n';
+  t+=r.sim.max<=0.5?'Il modello dell\'app basta: l\'errore massimo è sotto 0,5 mm (il foro è largo 3,3 mm).':
+     r.sim.max<=1.0?'Errore tra 0,5 e 1 mm: sufficiente per segnare un foro da 3,3 mm, ma i fori vicini ai bordi del foglio sono i più incerti.':
+     'Errore sopra 1 mm: la prospettiva (telefono non perpendicolare) pesa. '+(r.hom.max<r.sim.max/2?'Con la prospettiva corretta scende a '+f2(r.hom.max)+' mm: potrebbe valerne la pena (ne parliamo prima di cambiare l\'app).':'');
+  t+='\n\nAvvertenze: è UNA foto, ripeti 3-4 volte e con il foglio in punti diversi dell\'inquadratura. Il numero comprende anche i difetti di stampa e di lettura del righello (circa ±0,3 mm). Linee rosse = errore ingrandito 10 volte.';
+  out.textContent=t;
+}
+document.getElementById('mcam').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
+document.getElementById('mgal').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
 buildChips();draw();
 </script></body></html>

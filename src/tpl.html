@@ -25,6 +25,7 @@ canvas#view{display:block;width:100%;height:auto;touch-action:none}
 .tips{font-size:13px;line-height:1.5;color:#444}.tips li{margin:3px 0}
 .small{font-size:12px;color:#666}
 [hidden]{display:none!important}
+input[type=number]{width:100%;font-size:16px;padding:8px;border-radius:8px;border:1px solid #bbb}
 button.big{font-size:18px;padding:18px 14px}
 button.on{background:#1b8a3a}
 </style></head><body>
@@ -69,6 +70,21 @@ button.on{background:#1b8a3a}
  <input type="range" id="thr" min="-60" max="60" value="0">
  <p class="small" id="info"></p>
 </div>
+<details class="card" id="misura">
+ <summary style="font-weight:700;font-size:15px;cursor:pointer;padding:4px 0">📏 Prova di misura (precisione reale)</summary>
+ <p class="small">Misura quanto sbaglia davvero il tuo telefono sul tuo cavalletto, fotografando un foglio con croci a distanza nota.</p>
+ <ol class="tips">
+  <li><a href="prova-misura-A4.pdf" download>Scarica il foglio di prova (PDF A4)</a> e stampalo al <b>100%</b> (dimensione reale, non "adatta alla pagina").</li>
+  <li>Col righello misura le due barre sul foglio (da tacca a tacca, al decimo di mm) e scrivi i valori:
+   <div class="row" style="margin-top:6px"><div><label for="mbh">Orizzontale (mm, nominale 150)</label><input type="number" id="mbh" step="0.1" value="150" inputmode="decimal"></div>
+   <div><label for="mbv">Verticale (mm, nominale 250)</label><input type="number" id="mbv" step="0.1" value="250" inputmode="decimal"></div></div></li>
+  <li>Appoggia il foglio dove metti di solito le sagome, telefono sul cavalletto alla <b>stessa altezza di sempre</b>, perpendicolare. Tutto il foglio nell'inquadratura, luce uniforme. Scatta.</li>
+ </ol>
+ <div class="row"><label class="btn" for="mcam">📷 Foto del foglio</label><label class="btn sec" for="mgal">Dalla galleria</label></div>
+ <input id="mcam" type="file" accept="image/*" capture="environment" hidden><input id="mgal" type="file" accept="image/*" hidden>
+ <canvas id="mcv" width="900" height="600" style="width:100%;height:auto;border-radius:10px;margin-top:8px;background:#111" hidden></canvas>
+ <pre id="mres" style="white-space:pre-wrap;font:13px/1.5 system-ui,sans-serif;margin:8px 0 0"></pre>
+</details>
 <div class="card tips"><b>Come si usa</b>
  <ol><li>Tocca un foro (A, B, C…) per ingrandirlo.</li>
  <li>Segna con la penna il centro della croce viola, guardando lo schermo fermo.</li>
@@ -326,5 +342,42 @@ function stopLive(){
   live=null;liveBtn.textContent='Video live';liveBar.hidden=true;torchBtn.hidden=true;
   msg.textContent='Video fermato. L\'ultimo fotogramma resta a schermo.';
 }
+// ===== prova di misura =====
+var PROVA=/*PROVA*/;
+function f2(v){return v.toFixed(2).replace('.',',');}
+function misuraFile(f){
+  if(!f)return;var out=document.getElementById('mres');out.textContent='Carico la foto…';
+  var img=new Image();img.onload=function(){
+    var W=Math.min(img.naturalWidth,2000),H=Math.round(img.naturalHeight*W/img.naturalWidth);
+    var c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').drawImage(img,0,0,W,H);URL.revokeObjectURL(img.src);
+    out.textContent='Cerco le croci…';
+    setTimeout(function(){misuraMostra(c);},30);};
+  img.onerror=function(){out.textContent='Foto non leggibile.';};
+  img.src=URL.createObjectURL(f);
+}
+function misuraMostra(c){
+  var out=document.getElementById('mres'),mcv=document.getElementById('mcv'),W=c.width,H=c.height;
+  var bh=parseFloat(document.getElementById('mbh').value),bv=parseFloat(document.getElementById('mbv').value);
+  if(!(bh>100&&bh<200&&bv>180&&bv<320)){out.textContent='Controlla le misure delle barre: devono essere vicine a 150 e 250 mm.';return;}
+  var id=c.getContext('2d').getImageData(0,0,W,H),r=Core.misuraProva(id.data,W,H,PROVA,{fx:bh/PROVA.barra_h,fy:bv/PROVA.barra_v});
+  mcv.hidden=false;mcv.width=W;mcv.height=H;var x=mcv.getContext('2d');x.drawImage(c,0,0);
+  if(r.error){out.textContent=r.error;return;}
+  var k=r.scale,ar=k*Math.cos(r.rot),ai=k*Math.sin(r.rot),lw=Math.max(1.5,W/700);
+  r.pts.forEach(function(p){ // pallino = croce trovata; linea rossa = errore del modello dell'app, ingrandito 10 volte
+    x.strokeStyle='#2fe06b';x.lineWidth=lw;x.beginPath();x.arc(p.img[0],p.img[1],lw*4,0,6.2832);x.stroke();
+    var vx=p.eSim[0]*10,vy=p.eSim[1]*10;x.strokeStyle='#ff3b30';x.lineWidth=lw*1.6;x.beginPath();x.moveTo(p.img[0],p.img[1]);x.lineTo(p.img[0]+ar*vx-ai*vy,p.img[1]+ai*vx+ar*vy);x.stroke();});
+  var t='Croci trovate: '+r.found+' su '+r.expected+(r.missing.length?' (mancano: '+r.missing.join(', ')+')':'')+'\n'
+   +'Scala: '+f2(r.scale)+' px/mm (≈ '+f2(1/r.scale)+' mm per pixel) · foto '+W+'×'+H+'\n\n'
+   +'ERRORE DI POSIZIONE (sul piano del foglio)\n'
+   +'• Come calcola oggi l\'app (sposta + ruota + scala):\n    medio '+f2(r.sim.mean)+' mm · massimo '+f2(r.sim.max)+' mm\n'
+   +'• Con la prospettiva corretta:\n    medio '+f2(r.hom.mean)+' mm · massimo '+f2(r.hom.max)+' mm\n\n';
+  t+=r.sim.max<=0.5?'Il modello dell\'app basta: l\'errore massimo è sotto 0,5 mm (il foro è largo 3,3 mm).':
+     r.sim.max<=1.0?'Errore tra 0,5 e 1 mm: sufficiente per segnare un foro da 3,3 mm, ma i fori vicini ai bordi del foglio sono i più incerti.':
+     'Errore sopra 1 mm: la prospettiva (telefono non perpendicolare) pesa. '+(r.hom.max<r.sim.max/2?'Con la prospettiva corretta scende a '+f2(r.hom.max)+' mm: potrebbe valerne la pena (ne parliamo prima di cambiare l\'app).':'');
+  t+='\n\nAvvertenze: è UNA foto, ripeti 3-4 volte e con il foglio in punti diversi dell\'inquadratura. Il numero comprende anche i difetti di stampa e di lettura del righello (circa ±0,3 mm). Linee rosse = errore ingrandito 10 volte.';
+  out.textContent=t;
+}
+document.getElementById('mcam').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
+document.getElementById('mgal').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
 buildChips();draw();
 </script></body></html>

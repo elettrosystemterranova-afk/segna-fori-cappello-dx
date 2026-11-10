@@ -31,7 +31,12 @@ Leggi `README.md` per la struttura dei file.
 - Pipeline dati: `tools/analisi_gruppi.py` → pickle → `tools/esporta_gruppi.py` (legge anche `numeri_gruppi.json`). `tools/fogli_numeri.py` crea i fogli-contatto per rileggere i numeri.
 - Due fori di Braccio SX pt1 (pagine 17 e 33) sono fuori dal foglio (x negativa) e sono stati ignorati.
 
+- Passo 4a "Prova di misura" fatto (2026-11-10, non ancora su GitHub, NON provato con foto reali): `tools/genera_prova_misura.py` crea `docs/prova-misura-A4.pdf` (5×7 punti a passo 35 mm: 32 croci + 3 dischi agli angoli di diametro 10/7/5 mm per riconoscere l'orientamento, barre di controllo 150 mm e 250 mm) e `src/prova_misura.json`. `Core.misuraProva` trova le croci (soglia adattiva, centro sub-pixel) e calcola l'errore in mm sul piano del foglio con due modelli: similitudine (quello dell'app) e omografia (prospettiva). La pagina ha una sezione "Prova di misura" con caselle per le barre misurate col righello (correggono la stampa non in scala/anisotropa).
+- Test misura su foto SINTETICHE (`test/testmisura.js`): centri trovati entro 0,08 mm dalla verità; una stampa più lunga dello 0,6% in verticale genera da sola 0,35 mm di errore finto, azzerato dalla correzione con le barre. `test/uimisura.py` prova l'interfaccia col PDF vero trasformato in foto.
+- Limite noto della misura: comprende anche difetti di stampa e lettura del righello (circa ±0,3 mm). L'area misurata è un A4: per sagome grandi serve ripetere la prova con il foglio in punti diversi dell'inquadratura.
+
 ## Prossimi passi
+0. L'utente stampa il foglio, lo fotografa col suo telefono/cavalletto e riporta i numeri (medio/massimo, modello app vs prospettiva). Solo dopo decidere 4b (ArUco/omografia: prima pro e contro e misure a confronto) e 4c (parallasse dello spessore).
 1. Repo + GitHub Pages
 2. Verifica test (serve Node.js, installato con winget)
 3. Video live (getUserMedia, Web Worker, Wake Lock, torcia)
