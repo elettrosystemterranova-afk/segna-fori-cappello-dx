@@ -12,6 +12,7 @@ COLS, CW, CH = 4, 300, 260
 def sigla(nome):
     # "Braccio DX pt1" -> "DX1"
     p = nome.split()
+    if len(p) < 3: return "CDX"
     return p[1] + p[2][2:]
 
 

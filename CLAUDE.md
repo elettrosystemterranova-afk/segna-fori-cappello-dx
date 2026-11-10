@@ -21,7 +21,7 @@ Leggi `README.md` per la struttura dei file.
 
 ## Stato attuale
 - Repo pubblico creato, GitHub Pages attiva da `docs/` (https://elettrosystemterranova-afk.github.io/segna-fori-cappello-dx/).
-- Test su immagini sintetiche passano (`test.js` su 292 sagome: errore max 0,18 mm; `uitest.py` ok). Node.js installato con winget.
+- Test su immagini sintetiche (`test.js` su 292 sagome): errore medio 0,05 mm, ma il caso peggiore NON e' stabile tra le esecuzioni (il test usa rumore casuale): visti 0,55 / 0,87 / 1,39 / 2,34 mm (una volta 1 sagoma >2 mm), sempre su sagome piccole (es. sx2-1.3, 0,98 di IoU). Da indagare, non e' stato allentato nessun limite. `uitest.py` ok. Node.js installato con winget.
 - Video live riscritto (2026-11-10, NON ancora salvato su GitHub né provato su telefono reale): calcolo in Web Worker (blob con `core.js`), tracking dalla posa precedente (`Core.trackImage`), posa tenuta se IoU < 0,90, "Blocca posa" (rifinitura su fotogramma fino a 2000 px, poi fori fissi sul video con controllo ogni 1,5 s), Wake Lock, torcia se il telefono la espone, camera posteriore ideal 2560×1440 con fallback.
 - Prova del live: `test/mkvideo.py` + `test/livetest.py` (Chromium con fotocamera finta, video SINTETICO): worker attivo, pagina a 60 fps, posa tenuta con la "mano", errore fori dopo il blocco max 0,23 mm (sintetico). Su telefono reale (Android Chrome, iPhone Safari) NON provato.
 - Nuovi gruppi aggiunti il 2026-11-10 (da `pdf-originali/`, NON su GitHub): Braccio DX pt1 (52 sagome), Braccio DX pt2 (58), Braccio SX pt1 (82), Braccio SX pt2 (38). Totale 292 con le 62 di Cappello DX, che sono rimaste identiche.
@@ -37,7 +37,7 @@ Leggi `README.md` per la struttura dei file.
 
 ## Prossimi passi
 0. L'utente (2026-11-11) NON ha ancora fatto la prova di misura: ha usato il Video live sul telefono vero e ha segnato Braccio DX pt1 (funziona, nessun numero di precisione). Rifarà la prova col foglio con le croci nei prossimi giorni: poi riporta i numeri (medio/massimo, modello app vs prospettiva) e solo allora decidere 4b (ArUco/omografia: prima pro e contro e misure a confronto) e 4c (parallasse dello spessore).
-0b. Cappello DX: nella tendina "Sagoma" ci sono ancora "Foglio N.k" invece del numero inciso, perché i PDF originali di Cappello DX non sono in `pdf-originali/`. Per risolvere: l'utente li copia lì (coppia CON/SENZA dowel), poi si rileggono i numeri con `tools/fogli_numeri.py` e si aggiornano `tools/numeri_gruppi.json` e `data.json` (id e quote devono restare identici). In alternativa l'utente detta i numeri a mano.
+0b. FATTO (2026-11-11): Cappello DX ora ha come titolo il numero inciso (62 titoli distinti, letti a vista da `tools/numeri_gruppi.json`). Geometria e id invariati (verificato: 0 differenze oltre al campo `t`). Letture meno sicure da ricontrollare col pezzo in mano: "6" (1.1, tratti sparsi), "5-1:1" (21.1) e "4-2:1" (43.1) (etichette piccole vicino alla coda di rondine), "42" (3.1), "3" (19.1), "9-1" (26.2).
 0c. Dopo: PWA (5) può partire anche senza i numeri della prova di misura.
 1. Repo + GitHub Pages
 2. Verifica test (serve Node.js, installato con winget)

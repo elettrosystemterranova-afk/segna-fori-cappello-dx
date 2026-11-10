@@ -69,9 +69,11 @@ if __name__ == '__main__':
               if d.get('grp', GRUPPO_VECCHIO) == GRUPPO_VECCHIO]
     for d in vecchi:
         d['grp'] = GRUPPO_VECCHIO
-        d['t'] = 'Foglio ' + d['id']
+        d['t'] = numeri.get(GRUPPO_VECCHIO, {}).get(d['id'], 'Foglio ' + d['id'])
     nuovi = []
     for g in pickle.load(open(pk, 'rb')):
+        if g['nome'] == GRUPPO_VECCHIO:
+            continue  # Cappello DX: contorni e fori restano quelli gia' in data.json, cambia solo il titolo
         tit = numeri[g['nome']]
         usati = collections.Counter()
         for pz in sorted(g['pezzi'], key=lambda p: (p['pagina'], p['k'])):
