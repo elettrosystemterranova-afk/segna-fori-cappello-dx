@@ -6,7 +6,8 @@ sulla silhouette rilevata, massimizzando l'IoU (src/core.js, JS puro, testabile 
 
 - `src/core.js` motore di allineamento · `src/tpl.html` interfaccia · `src/data.json` 62 sagome (contorni e fori in cm)
 - `python3 src/build.py` (dalla radice) genera `docs/index.html` (pagina singola, servita da GitHub Pages)
-- `tools/` script Python (PyMuPDF) che hanno estratto i dati dai PDF (servono i PDF originali, non inclusi)
+- `tools/` script Python (PyMuPDF) che hanno estratto i dati dai PDF (servono i PDF originali, non inclusi; vanno in `pdf-originali/`, che git ignora). Gruppi Braccio: `analisi_gruppi.py` → `esporta_gruppi.py`, titoli in `numeri_gruppi.json`
+- `src/data.json`: 292 sagome in 5 gruppi (Cappello DX, Braccio DX pt1/pt2, Braccio SX pt1/pt2)
 - `test/test.js` prova su immagini sintetiche: `node test/test.js [id,id,...]` (OCC=3 per simulare una mano)
 - `test/uitest.py` prova la pagina in Chrome headless (Playwright) con una foto sintetica
 

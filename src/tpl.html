@@ -25,10 +25,11 @@ canvas#view{display:block;width:100%;height:auto;touch-action:none}
 .tips{font-size:13px;line-height:1.5;color:#444}.tips li{margin:3px 0}
 .small{font-size:12px;color:#666}
 </style></head><body>
-<header><h1>Segna fori – Cappello DX</h1><p>Scatta una foto della sagoma: l'app sovrappone i fori nella posizione esatta</p></header>
+<header><h1>Segna fori</h1><p>Scatta una foto della sagoma: l'app sovrappone i fori nella posizione esatta</p></header>
 <main>
 <div class="card">
- <label for="pc">1. Sagoma</label><select id="pc"></select>
+ <label for="gr">1. Gruppo</label><select id="gr"></select>
+ <label for="pc" style="margin-top:10px;display:block">2. Sagoma (numero inciso)</label><select id="pc"></select>
  <div class="chk"><input type="checkbox" id="flip"><span>Sagoma capovolta (vista dal lato opposto al PDF)</span></div>
  <div class="chk"><input type="checkbox" id="dark"><span>Sagoma scura su sfondo chiaro</span></div>
 </div>
@@ -75,7 +76,12 @@ var DATA=/*DATA*/;
 var cv=document.getElementById('view'),cx=cv.getContext('2d'),badge=document.getElementById('badge'),msg=document.getElementById('msg');
 var src=null,res=null,view={x:0,y:0,z:1},showMask=false,done={},sel=-1,maskCv=null,live=null;
 var pcSel=document.getElementById('pc');
-DATA.forEach(function(p,i){var o=document.createElement('option');o.value=i;o.textContent='Foglio '+p.id+' · '+p.w.toFixed(1).replace('.',',')+'×'+p.h.toFixed(1).replace('.',',')+' cm · '+p.holes.length+(p.holes.length==1?' foro':' fori');pcSel.appendChild(o);});
+var grSel=document.getElementById('gr'),gruppi=[];
+DATA.forEach(function(p){if(gruppi.indexOf(p.grp)<0)gruppi.push(p.grp);});
+gruppi.forEach(function(g){var o=document.createElement('option');o.value=g;o.textContent=g+' ('+DATA.filter(function(p){return p.grp==g;}).length+' sagome)';grSel.appendChild(o);});
+// riempie l'elenco delle sagome del gruppo scelto (il valore di ogni voce è la posizione in DATA)
+function fillPieces(){pcSel.innerHTML='';DATA.forEach(function(p,i){if(p.grp!=grSel.value)return;var o=document.createElement('option');o.value=i;o.textContent=p.t+' · '+p.w.toFixed(1).replace('.',',')+'×'+p.h.toFixed(1).replace('.',',')+' cm · '+p.holes.length+(p.holes.length==1?' foro':' fori');pcSel.appendChild(o);});}
+fillPieces();
 function cur(){return DATA[+pcSel.value];}
 function opts(){return {light:!document.getElementById('dark').checked,flip:document.getElementById('flip').checked,thrOff:+document.getElementById('thr').value};}
 function status(cls,t){badge.className=cls;badge.textContent=t;}
@@ -170,6 +176,7 @@ document.getElementById('redo').onclick=run;
 document.getElementById('thr').onchange=run;
 document.getElementById('flip').onchange=function(){if(src)run();};
 document.getElementById('dark').onchange=function(){if(src)run();};
+grSel.onchange=function(){fillPieces();pcSel.onchange();};
 pcSel.onchange=function(){sel=-1;res=null;buildChips();if(src)run();else draw();};
 window.addEventListener('resize',function(){if(src){var o=cv.width;sizeCanvas();draw();}});
 // video live (puo' essere bloccato dal visualizzatore)

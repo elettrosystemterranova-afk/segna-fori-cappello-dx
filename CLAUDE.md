@@ -20,7 +20,15 @@ Leggi `README.md` per la struttura dei file.
 - GitHub: `elettrosystemterranova-afk/segna-fori-cappello-dx`, PUBBLICO (scelto dall'utente il 2026-11-10: serve per GitHub Pages gratuito, HTTPS per la fotocamera).
 
 ## Stato attuale
-- Prototipo funzionante su immagini sintetiche. Repository in fase di creazione.
+- Repo pubblico creato, GitHub Pages attiva da `docs/` (https://elettrosystemterranova-afk.github.io/segna-fori-cappello-dx/).
+- Test su immagini sintetiche passano (`test.js` su 292 sagome: errore max 0,18 mm; `uitest.py` ok). Node.js installato con winget.
+- Il pulsante "Video live" l'utente dice che funziona (si vede la sagoma da centrare); non è ancora stato misurato né rifinito (Worker, Wake Lock, ecc.).
+- Nuovi gruppi aggiunti il 2026-11-10 (da `pdf-originali/`, NON su GitHub): Braccio DX pt1 (52 sagome), Braccio DX pt2 (58), Braccio SX pt1 (82), Braccio SX pt2 (38). Totale 292 con le 62 di Cappello DX, che sono rimaste identiche.
+- `src/data.json`: ogni sagoma ha `grp` (gruppo) e `t` (titolo). Per i Braccio il titolo è il numero inciso, letto a vista dai tratti rossi (`tools/numeri_gruppi.json`). Per Cappello DX resta "Foglio N.k" perché i PDF originali non ci sono.
+- I fori dei nuovi gruppi si chiamano H1, H2... (ordinati da sinistra a destra), non A/B/C.
+- Interfaccia: selettore a due livelli Gruppo → Sagoma.
+- Pipeline dati: `tools/analisi_gruppi.py` → pickle → `tools/esporta_gruppi.py` (legge anche `numeri_gruppi.json`). `tools/fogli_numeri.py` crea i fogli-contatto per rileggere i numeri.
+- Due fori di Braccio SX pt1 (pagine 17 e 33) sono fuori dal foglio (x negativa) e sono stati ignorati.
 
 ## Prossimi passi
 1. Repo + GitHub Pages
@@ -32,3 +40,6 @@ Leggi `README.md` per la struttura dei file.
 
 ## Decisioni
 - Repo pubblico perché GitHub Pages gratuito non serve repo privati.
+- Ogni PDF (coppia CON/SENZA dowel) è un gruppo: pt1 e pt2 restano gruppi separati. Si possono unire in seguito.
+- `pdf-originali/` e `*.pdf` sono nel `.gitignore` (file originali dell'utente, repo pubblico).
+- Titolo = numero inciso letto a vista (non OCR). Letture meno sicure da ricontrollare col pezzo in mano: DX pt1 "30" (tratti accanto), DX pt2 "53" e "54" (linea che attraversa), DX pt2 "44", SX pt1 "47".
