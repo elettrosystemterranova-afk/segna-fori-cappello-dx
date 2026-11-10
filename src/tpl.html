@@ -24,6 +24,9 @@ canvas#view{display:block;width:100%;height:auto;touch-action:none}
 .chip.done{background:#d9f2e0;color:#14692c;border-color:#1b8a3a}
 .tips{font-size:13px;line-height:1.5;color:#444}.tips li{margin:3px 0}
 .small{font-size:12px;color:#666}
+[hidden]{display:none!important}
+button.big{font-size:18px;padding:18px 14px}
+button.on{background:#1b8a3a}
 </style></head><body>
 <header><h1>Segna fori</h1><p>Scatta una foto della sagoma: l'app sovrappone i fori nella posizione esatta</p></header>
 <main>
@@ -46,11 +49,16 @@ canvas#view{display:block;width:100%;height:auto;touch-action:none}
   <li>Telefono sul cavalletto, <b>perpendicolare</b> alla sagoma e il più possibile sopra il suo centro.</li>
   <li>Sagoma su un fondo <b>scuro e opaco</b> (cartoncino nero), luce uniforme, niente mani nell'inquadratura.</li>
   <li>Tutta la sagoma deve stare nella foto. Non muovere sagoma e telefono mentre segni.</li>
+  <li><b>Video live:</b> aspetta il badge verde, poi premi <b>Blocca posa</b>: i fori restano fermi sul video e vedi la punta della penna avvicinarsi alla croce. Se la qualità scende (mano sopra la sagoma) l'app tiene l'ultima posa buona.</li>
  </ul>
 </div>
 <div class="card">
  <div id="stage"><canvas id="view" width="900" height="600"></canvas><div id="badge">nessuna foto</div></div>
  <div id="msg">Scegli la sagoma e scatta una foto.</div>
+ <div class="row" id="liveBar" style="margin-top:8px" hidden>
+  <button class="big" id="lock">🔒 Blocca posa</button>
+  <button class="sec big" id="torch" hidden>🔦 Torcia</button>
+ </div>
  <div class="chips" id="chips"></div>
  <div class="row" style="margin-top:8px">
   <button class="sec" id="full">Vista intera</button>
@@ -69,6 +77,9 @@ canvas#view{display:block;width:100%;height:auto;touch-action:none}
  <p class="small">Il cerchio viola ha il diametro reale del foro (3,3 mm). La qualità è mostrata in alto: verde = affidabile, arancione = controlla, rosso = non allineato (i fori vengono nascosti).</p></div>
 </main>
 <script>
+/*CORE*/
+</script>
+<script id="coresrc" type="text/plain">
 /*CORE*/
 </script>
 <script>
@@ -98,6 +109,7 @@ function loadFile(f){
   img.src=URL.createObjectURL(f);
 }
 function run(){
+  if(live){liveReset();return;}
   if(!src)return;var t=cur();msg.textContent='Elaboro…';status('','…');
   setTimeout(function(){
     var id=src.getContext('2d').getImageData(0,0,src.width,src.height);
@@ -177,30 +189,142 @@ document.getElementById('thr').onchange=run;
 document.getElementById('flip').onchange=function(){if(src)run();};
 document.getElementById('dark').onchange=function(){if(src)run();};
 grSel.onchange=function(){fillPieces();pcSel.onchange();};
-pcSel.onchange=function(){sel=-1;res=null;buildChips();if(src)run();else draw();};
-window.addEventListener('resize',function(){if(src){var o=cv.width;sizeCanvas();draw();}});
-// video live (puo' essere bloccato dal visualizzatore)
-document.getElementById('live').onclick=function(){
+pcSel.onchange=function(){sel=-1;res=null;buildChips();if(live){liveReset();return;}if(src)run();else draw();};
+window.addEventListener('resize',function(){if(src){sizeCanvas();draw();}});
+// ===== video live =====
+// Il calcolo gira in un Web Worker (stesso core.js) per non bloccare il video.
+// Fotogrammi: tracking dalla posa precedente; se la qualità (IoU) scende sotto 0,90 si tiene l'ultima posa buona.
+// "Blocca posa": rifinisce su un fotogramma ad alta risoluzione e fissa i fori sul video che continua.
+var liveBtn=document.getElementById('live'),lockBtn=document.getElementById('lock'),torchBtn=document.getElementById('torch'),liveBar=document.getElementById('liveBar');
+var CORE_SRC=document.getElementById('coresrc').textContent;
+// eseguita nel worker (o sul thread principale se il worker non parte)
+function liveCompute(Core,m){
+  var rgba=new Uint8ClampedArray(m.buf),r=null,t0=Date.now();
+  if(m.mode==='score'){r=Core.trackImage(rgba,m.w,m.h,m.tpl,Object.assign({},m.opt,{scoreOnly:true,fine:640}),m.prev);}
+  else if(m.mode==='lock'){r=Core.trackImage(rgba,m.w,m.h,m.tpl,Object.assign({},m.opt,{fine:1600}),m.prev);}
+  else{
+    if(m.prev)r=Core.trackImage(rgba,m.w,m.h,m.tpl,Object.assign({},m.opt,{fine:640}),m.prev);
+    if(!r||r.iou<0.90){var f=Core.fitImage(rgba,m.w,m.h,m.tpl,Object.assign({},m.opt,{coarse:320,fine:640}));if(f&&(!r||f.iou>r.iou))r={pose:f.pose,iou:f.iou};}
+  }
+  return {id:m.id,mode:m.mode,tid:m.tid,wl:m.wl,w:m.w,r:r,ms:Date.now()-t0};
+}
+function makeWorker(){
+  try{
+    var code=CORE_SRC+'\n'+liveCompute.toString()+'\nself.onmessage=function(e){self.postMessage(liveCompute(Core,e.data));};';
+    var w=new Worker(URL.createObjectURL(new Blob([code],{type:'text/javascript'})));
+    w.onmessage=function(e){liveResult(e.data);};
+    w.onerror=function(){if(live){live.worker=null;live.busy=false;msg.textContent='Calcolo in background non disponibile: continuo senza (il video può rallentare).';}};
+    return w;
+  }catch(e){return null;}
+}
+function livePost(m){
+  if(live.worker)live.worker.postMessage(m,[m.buf]);
+  else setTimeout(function(){if(live)liveResult(liveCompute(Core,m));},0);
+}
+function updateLockUI(){
+  if(!live)return;lockBtn.textContent=live.locked?'🔓 Sblocca posa':'🔒 Blocca posa';lockBtn.className='big'+(live.locked?' on':'');
+}
+function liveReset(){ // dimentica la posa: dal prossimo fotogramma si ricerca da capo
+  if(!live)return;live.pose=null;live.iou=0;live.locked=false;live.held=0;res=null;updateLockUI();status('','…');msg.textContent='Cerco la sagoma…';draw();
+}
+function wakeOn(){try{if(navigator.wakeLock&&live)navigator.wakeLock.request('screen').then(function(l){if(live)live.wake=l;else l.release();}).catch(function(){});}catch(e){}}
+document.addEventListener('visibilitychange',function(){if(live&&document.visibilityState==='visible'&&(!live.wake||live.wake.released))wakeOn();});
+function openCamera(){
+  var tries=[{video:{facingMode:{ideal:'environment'},width:{ideal:2560},height:{ideal:1440}}},{video:{facingMode:{ideal:'environment'}}},{video:true}];
+  function go(i){return navigator.mediaDevices.getUserMedia(tries[i]).catch(function(e){
+    if(i<tries.length-1&&e&&(e.name==='OverconstrainedError'||e.name==='NotFoundError'||e.name==='NotReadableError'))return go(i+1);throw e;});}
+  return go(0);
+}
+liveBtn.onclick=function(){
   if(live){stopLive();return;}
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.textContent='Fotocamera live non disponibile qui: usa "Scatta foto".';return;}
-  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}}).then(function(stream){
-    var v=document.createElement('video');v.playsInline=true;v.muted=true;v.srcObject=stream;v.play();
-    live={v:v,stream:stream,busy:false,t:0,lock:false};document.getElementById('live').textContent='Ferma video';
-    var c=document.createElement('canvas');live.c=c;
-    (function loop(){
-      if(!live)return;
-      if(v.videoWidth){var W=Math.min(v.videoWidth,1280),H=Math.round(v.videoHeight*W/v.videoWidth);
-        if(c.width!==W){c.width=W;c.height=H;}c.getContext('2d').drawImage(v,0,0,W,H);src=c;
-        if(cv.width!==stageW()||!live.sized){sizeCanvas();live.sized=true;}
-        var now=Date.now();
-        if(now-live.t>900&&!live.busy){live.busy=true;live.t=now;
-          var id=c.getContext('2d').getImageData(0,0,W,H),r=Core.fitImage(id.data,W,H,cur(),Object.assign(opts(),{coarse:320,fine:W}));
-          if(r&&(r.iou>=0.90||!res||res.iou<0.85)){res=r;report(0);}
-          live.busy=false;}
-        draw();}
-      requestAnimationFrame(loop);})();
-  }).catch(function(){msg.textContent='Il visualizzatore blocca la fotocamera live. Usa "Scatta foto" (apre la fotocamera del telefono) oppure apri la pagina direttamente nel browser.';});
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.textContent='Fotocamera live non disponibile qui (serve https): usa "Scatta foto".';return;}
+  openCamera().then(startLive).catch(function(e){
+    msg.textContent=(e&&e.name==='NotAllowedError')?'Permesso alla fotocamera negato: abilitalo nelle impostazioni del browser per questo sito e riprova.':'Non riesco ad aprire la fotocamera live ('+(e&&e.name||'errore')+'). Se la pagina è dentro un\'altra app, aprila nel browser. Altrimenti usa "Scatta foto".';});
 };
-function stopLive(){if(live){live.stream.getTracks().forEach(function(t){t.stop();});live=null;document.getElementById('live').textContent='Video live';}}
+function startLive(stream){
+  var v=document.createElement('video');v.playsInline=true;v.muted=true;v.setAttribute('playsinline','');v.srcObject=stream;v.play();
+  var tr=stream.getVideoTracks()[0],caps=(tr&&tr.getCapabilities)?tr.getCapabilities():{};
+  var c=document.createElement('canvas');
+  live={v:v,c:c,stream:stream,track:tr,worker:makeWorker(),busy:false,t:0,id:0,locked:false,locking:false,pose:null,iou:0,held:0,score:1,sized:false,torchOn:false,wake:null};
+  liveBtn.textContent='Ferma video';liveBar.hidden=false;updateLockUI();wakeOn();
+  try{if(caps.focusMode&&caps.focusMode.indexOf('continuous')>=0)tr.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(function(){});}catch(e){}
+  torchBtn.hidden=!caps.torch;torchBtn.className='sec big';
+  sel=-1;res=null;showMask=false;maskCv=null;msg.textContent='Inquadra la sagoma dall\'alto e tieni fermo il telefono.';status('','…');
+  (function loop(){
+    if(!live||live.v!==v)return;
+    if(v.videoWidth&&v.readyState>=2){
+      var W=Math.min(v.videoWidth,1280),H=Math.round(v.videoHeight*W/v.videoWidth);
+      if(c.width!==W||c.height!==H){c.width=W;c.height=H;live.sized=false;if(live.pose)liveReset();}
+      c.getContext('2d',{willReadFrequently:true}).drawImage(v,0,0,W,H);src=c;
+      if(!live.sized){sizeCanvas();live.sized=true;}
+      if(!live.busy&&performance.now()-live.t>(live.locked?1500:350))liveSend(W,H);
+      draw();}
+    requestAnimationFrame(loop);})();
+}
+function liveSend(W,H){
+  var o=opts(),t=cur(),d=live.c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,W,H);
+  var prev=(live.pose&&live.pose.flip===!!o.flip)?live.pose:null;
+  live.busy=true;live.t=performance.now();
+  livePost({id:++live.id,mode:live.locked?'score':'frame',tid:t.id,w:W,h:H,wl:W,buf:d.data.buffer,tpl:{poly:t.poly,area:t.area},opt:o,prev:prev});
+}
+function liveResult(o){
+  if(!live)return;
+  if(o.mode!=='lock')live.busy=false;
+  if(o.tid!==cur().id)return; // risultato di una sagoma scelta prima
+  var r=o.r;
+  if(o.mode==='lock'){finishLock(o);return;}
+  if(o.mode==='score'){
+    live.score=r?r.iou:0;
+    if(live.score>=0.75){status('ok','Posa bloccata');msg.textContent='Posa bloccata. Tocca un foro per ingrandirlo e segna con la penna il centro della croce. Il video continua: vedi la punta avvicinarsi.';}
+    else{status('warn','Bloccata: controlla');msg.textContent='Il contorno non coincide più con la sagoma ('+(live.score*100).toFixed(0)+'%). Può essere la mano sopra la sagoma, oppure telefono o sagoma spostati: in quel caso sblocca la posa.';}
+    return;}
+  var info=document.getElementById('info');
+  if(r&&r.iou>=0.90){
+    live.pose=r.pose;live.iou=r.iou;live.held=0;res={pose:r.pose,iou:r.iou};
+    var edge=touches();
+    if(r.iou>=0.95&&!edge){status('ok','Affidabile '+(r.iou*100).toFixed(1)+'%');msg.textContent='Allineata. Se la qualità è stabile premi "Blocca posa".';}
+    else{status('warn','Controlla '+(r.iou*100).toFixed(1)+'%');msg.textContent=edge?'La sagoma tocca il bordo dell\'inquadratura: allontana il telefono.':'Allineamento discreto: aspetta che diventi verde prima di bloccare.';}
+  }else if(live.pose){
+    live.held++;res={pose:live.pose,iou:live.iou};
+    status('warn','Posa tenuta');
+    msg.textContent='Qualità bassa ora ('+(r?(r.iou*100).toFixed(0)+'%':'sagoma non trovata')+'): tengo l\'ultima posa buona. Se copri la sagoma con la mano è normale; se hai spostato qualcosa, aspetta che si riallinei.';
+  }else{
+    res=r?{pose:r.pose,iou:r.iou}:null;
+    status('bad',r?'Non allineato '+(r.iou*100).toFixed(0)+'%':'nessuna sagoma');
+    msg.textContent='Non trovo la sagoma: controlla contrasto e sfondo, togli le mani dall\'inquadratura (o prova "sagoma scura").';
+  }
+  info.textContent='Video live '+o.w+'×'+live.c.height+' · elaborazione '+o.ms+' ms';
+  draw();
+}
+lockBtn.onclick=function(){
+  if(!live||live.locking)return;
+  if(live.locked){live.locked=false;updateLockUI();msg.textContent='Posa sbloccata: riallineo di nuovo.';status('','…');return;}
+  if(!live.pose||live.iou<0.90){msg.textContent='Prima serve un allineamento affidabile (badge verde o arancione). Togli le mani dall\'inquadratura.';return;}
+  // fotogramma ad alta risoluzione (fino a 2000 px) per la rifinitura finale
+  var v=live.v,W=Math.min(v.videoWidth,2000),H=Math.round(v.videoHeight*W/v.videoWidth),bc=document.createElement('canvas');
+  bc.width=W;bc.height=H;var bx=bc.getContext('2d');bx.drawImage(v,0,0,W,H);var d=bx.getImageData(0,0,W,H),t=cur();
+  live.locking=true;lockBtn.disabled=true;msg.textContent='Blocco la posa: rifinisco sul fotogramma intero…';
+  livePost({id:++live.id,mode:'lock',tid:t.id,w:W,h:H,wl:live.c.width,buf:d.data.buffer,tpl:{poly:t.poly,area:t.area},opt:opts(),prev:Core.scalePose(live.pose,W/live.c.width)});
+};
+function finishLock(o){
+  live.locking=false;lockBtn.disabled=false;var r=o.r;
+  if(r&&r.iou>=0.90){
+    live.pose=Core.scalePose(r.pose,o.wl/o.w);live.iou=r.iou;live.locked=true;live.score=1;live.t=performance.now();
+    res={pose:live.pose,iou:r.iou};updateLockUI();status('ok','Posa bloccata '+(r.iou*100).toFixed(1)+'%');
+    msg.textContent='Posa bloccata. Tocca un foro per ingrandirlo e segna con la penna il centro della croce.';draw();
+  }else{msg.textContent='Non riesco a bloccare: qualità '+(r?(r.iou*100).toFixed(0)+'%':'nulla')+'. Togli la mano dall\'inquadratura e riprova.';}
+}
+torchBtn.onclick=function(){
+  if(!live||!live.track)return;var on=!live.torchOn;
+  live.track.applyConstraints({advanced:[{torch:on}]}).then(function(){live.torchOn=on;torchBtn.className='sec big'+(on?' on':'');}).catch(function(){msg.textContent='La torcia non risponde su questo telefono.';});
+};
+function stopLive(){
+  if(!live)return;
+  live.stream.getTracks().forEach(function(t){t.stop();});
+  if(live.worker)live.worker.terminate();
+  if(live.wake){try{live.wake.release();}catch(e){}}
+  live=null;liveBtn.textContent='Video live';liveBar.hidden=true;torchBtn.hidden=true;
+  msg.textContent='Video fermato. L\'ultimo fotogramma resta a schermo.';
+}
 buildChips();draw();
 </script></body></html>

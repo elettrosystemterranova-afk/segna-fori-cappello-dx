@@ -10,5 +10,6 @@ sulla silhouette rilevata, massimizzando l'IoU (src/core.js, JS puro, testabile 
 - `src/data.json`: 292 sagome in 5 gruppi (Cappello DX, Braccio DX pt1/pt2, Braccio SX pt1/pt2)
 - `test/test.js` prova su immagini sintetiche: `node test/test.js [id,id,...]` (OCC=3 per simulare una mano)
 - `test/uitest.py` prova la pagina in Chrome headless (Playwright) con una foto sintetica
+- `test/mkvideo.py` + `test/livetest.py` provano il video live con la fotocamera finta di Chromium (video sintetico; `NOLOCK=1` per non bloccare la posa)
 
 Risultati noti: su immagini sintetiche errore max sui fori 0,17 mm (62 sagome). NON ancora misurato su foto reali.

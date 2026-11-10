@@ -22,7 +22,8 @@ Leggi `README.md` per la struttura dei file.
 ## Stato attuale
 - Repo pubblico creato, GitHub Pages attiva da `docs/` (https://elettrosystemterranova-afk.github.io/segna-fori-cappello-dx/).
 - Test su immagini sintetiche passano (`test.js` su 292 sagome: errore max 0,18 mm; `uitest.py` ok). Node.js installato con winget.
-- Il pulsante "Video live" l'utente dice che funziona (si vede la sagoma da centrare); non è ancora stato misurato né rifinito (Worker, Wake Lock, ecc.).
+- Video live riscritto (2026-11-10, NON ancora salvato su GitHub né provato su telefono reale): calcolo in Web Worker (blob con `core.js`), tracking dalla posa precedente (`Core.trackImage`), posa tenuta se IoU < 0,90, "Blocca posa" (rifinitura su fotogramma fino a 2000 px, poi fori fissi sul video con controllo ogni 1,5 s), Wake Lock, torcia se il telefono la espone, camera posteriore ideal 2560×1440 con fallback.
+- Prova del live: `test/mkvideo.py` + `test/livetest.py` (Chromium con fotocamera finta, video SINTETICO): worker attivo, pagina a 60 fps, posa tenuta con la "mano", errore fori dopo il blocco max 0,23 mm (sintetico). Su telefono reale (Android Chrome, iPhone Safari) NON provato.
 - Nuovi gruppi aggiunti il 2026-11-10 (da `pdf-originali/`, NON su GitHub): Braccio DX pt1 (52 sagome), Braccio DX pt2 (58), Braccio SX pt1 (82), Braccio SX pt2 (38). Totale 292 con le 62 di Cappello DX, che sono rimaste identiche.
 - `src/data.json`: ogni sagoma ha `grp` (gruppo) e `t` (titolo). Per i Braccio il titolo è il numero inciso, letto a vista dai tratti rossi (`tools/numeri_gruppi.json`). Per Cappello DX resta "Foglio N.k" perché i PDF originali non ci sono.
 - I fori dei nuovi gruppi si chiamano H1, H2... (ordinati da sinistra a destra), non A/B/C.

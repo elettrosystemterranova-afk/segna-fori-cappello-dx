@@ -145,6 +145,18 @@ function fitImage(rgba,w,h,tpl,opt){
   }else{out.pose=scalePose(p1,w/d1.w);out.iou=p1.iou;}
   return out;
 }
-return {downscaleGray:downscaleGray,blur3:blur3,otsu:otsu,makeMask:makeMask,largest:largest,prefix:prefix,xform:xform,iou:iou,refine:refine,makeCtx:makeCtx,initFit:initFit,fitImage:fitImage,scalePose:scalePose};
+// inseguimento (video live): parte dalla posa precedente (px del fotogramma), senza la ricerca iniziale.
+// opt.scoreOnly = calcola solo l'IoU della posa data (serve a controllare una posa bloccata)
+function trackImage(rgba,w,h,tpl,opt,prev){
+  opt=opt||{};var light=opt.light!==false,tw=Math.min(w,opt.fine||640);
+  var d=downscaleGray(rgba,w,h,tw),g=blur3(d.g,d.w,d.h),thr=otsu(g)+(opt.thrOff||0);
+  var ctx=makeCtx(makeMask(g,d.w,d.h,thr,light),d.w,d.h);
+  if(ctx.area<50)return null;
+  var p0=scalePose(prev,d.w/w);
+  if(opt.scoreOnly)return {pose:prev,iou:iou(tpl.poly,p0,ctx)};
+  var p=refine(tpl.poly,p0,ctx,{pos:3,th:0.01,s:0.01},{pos:0.05,th:0.0001,s:0.0001},400);
+  return {pose:scalePose(p,w/d.w),iou:p.iou};
+}
+return {downscaleGray:downscaleGray,blur3:blur3,otsu:otsu,makeMask:makeMask,largest:largest,prefix:prefix,xform:xform,iou:iou,refine:refine,makeCtx:makeCtx,initFit:initFit,fitImage:fitImage,trackImage:trackImage,scalePose:scalePose};
 })();
 if(typeof module!=='undefined')module.exports=Core;
