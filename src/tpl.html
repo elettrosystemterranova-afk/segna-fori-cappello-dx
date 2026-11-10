@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Segna fori – Cappello DX</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:#f4f3ef;color:#1d1d1b}
+header{padding:12px 14px;background:#2b2342;color:#fff}header h1{margin:0;font-size:17px}header p{margin:2px 0 0;font-size:12px;opacity:.8}
+main{max-width:900px;margin:0 auto;padding:10px}
+.card{background:#fff;border-radius:12px;padding:12px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+label{font-size:13px;display:block;margin:6px 0 2px;font-weight:600}
+select,input[type=range]{width:100%;font-size:16px;padding:8px;border-radius:8px;border:1px solid #bbb;background:#fff}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1 1 auto}
+button,.btn{font-size:15px;padding:12px 14px;border-radius:10px;border:0;background:#6a2fb5;color:#fff;font-weight:600;text-align:center;cursor:pointer;display:inline-block}
+button.sec,.btn.sec{background:#e7e3f1;color:#2b2342}
+button:disabled{opacity:.4}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0;font-weight:400}.chk input{width:20px;height:20px}
+#stage{position:relative;background:#111;border-radius:12px;overflow:hidden;touch-action:none}
+canvas#view{display:block;width:100%;height:auto;touch-action:none}
+#badge{position:absolute;left:8px;top:8px;padding:5px 9px;border-radius:14px;font-size:13px;font-weight:700;color:#fff;background:#666}
+#badge.ok{background:#1b8a3a}#badge.warn{background:#c77a00}#badge.bad{background:#c0392b}
+#msg{font-size:14px;margin:8px 0 0;line-height:1.4}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{padding:10px 14px;border-radius:20px;background:#efe6fa;color:#5a1e99;font-weight:700;font-size:15px;border:2px solid #a24ee0}
+.chip.done{background:#d9f2e0;color:#14692c;border-color:#1b8a3a}
+.tips{font-size:13px;line-height:1.5;color:#444}.tips li{margin:3px 0}
+.small{font-size:12px;color:#666}
+</style></head><body>
+<header><h1>Segna fori – Cappello DX</h1><p>Scatta una foto della sagoma: l'app sovrappone i fori nella posizione esatta</p></header>
+<main>
+<div class="card">
+ <label for="pc">1. Sagoma</label><select id="pc"></select>
+ <div class="chk"><input type="checkbox" id="flip"><span>Sagoma capovolta (vista dal lato opposto al PDF)</span></div>
+ <div class="chk"><input type="checkbox" id="dark"><span>Sagoma scura su sfondo chiaro</span></div>
+</div>
+<div class="card">
+ <label>2. Foto dall'alto</label>
+ <div class="row">
+  <label class="btn" for="cam">📷 Scatta foto</label>
+  <label class="btn sec" for="gal">Dalla galleria</label>
+  <button class="sec" id="live">Video live</button>
+ </div>
+ <input id="cam" type="file" accept="image/*" capture="environment" hidden>
+ <input id="gal" type="file" accept="image/*" hidden>
+ <ul class="tips">
+  <li>Telefono sul cavalletto, <b>perpendicolare</b> alla sagoma e il più possibile sopra il suo centro.</li>
+  <li>Sagoma su un fondo <b>scuro e opaco</b> (cartoncino nero), luce uniforme, niente mani nell'inquadratura.</li>
+  <li>Tutta la sagoma deve stare nella foto. Non muovere sagoma e telefono mentre segni.</li>
+ </ul>
+</div>
+<div class="card">
+ <div id="stage"><canvas id="view" width="900" height="600"></canvas><div id="badge">nessuna foto</div></div>
+ <div id="msg">Scegli la sagoma e scatta una foto.</div>
+ <div class="chips" id="chips"></div>
+ <div class="row" style="margin-top:8px">
+  <button class="sec" id="full">Vista intera</button>
+  <button class="sec" id="mask">Mostra maschera</button>
+  <button class="sec" id="redo">Rielabora</button>
+ </div>
+ <label for="thr" style="margin-top:10px">Soglia chiaro/scuro (se il contorno non segue la sagoma)</label>
+ <input type="range" id="thr" min="-60" max="60" value="0">
+ <p class="small" id="info"></p>
+</div>
+<div class="card tips"><b>Come si usa</b>
+ <ol><li>Tocca un foro (A, B, C…) per ingrandirlo.</li>
+ <li>Segna con la penna il centro della croce viola, guardando lo schermo fermo.</li>
+ <li>Tocca di nuovo il foro per segnarlo come fatto (diventa verde).</li>
+ <li><b>Verifica:</b> scatta un'altra foto dopo aver segnato: i segni a penna devono cadere nei cerchi viola.</li></ol>
+ <p class="small">Il cerchio viola ha il diametro reale del foro (3,3 mm). La qualità è mostrata in alto: verde = affidabile, arancione = controlla, rosso = non allineato (i fori vengono nascosti).</p></div>
+</main>
+<script>
+/*CORE*/
+</script>
+<script>
+var DATA=/*DATA*/;
+var cv=document.getElementById('view'),cx=cv.getContext('2d'),badge=document.getElementById('badge'),msg=document.getElementById('msg');
+var src=null,res=null,view={x:0,y:0,z:1},showMask=false,done={},sel=-1,maskCv=null,live=null;
+var pcSel=document.getElementById('pc');
+DATA.forEach(function(p,i){var o=document.createElement('option');o.value=i;o.textContent='Foglio '+p.id+' · '+p.w.toFixed(1).replace('.',',')+'×'+p.h.toFixed(1).replace('.',',')+' cm · '+p.holes.length+(p.holes.length==1?' foro':' fori');pcSel.appendChild(o);});
+function cur(){return DATA[+pcSel.value];}
+function opts(){return {light:!document.getElementById('dark').checked,flip:document.getElementById('flip').checked,thrOff:+document.getElementById('thr').value};}
+function status(cls,t){badge.className=cls;badge.textContent=t;}
+function fitView(){if(!src)return;var sc=Math.min(cv.width/src.width,cv.height/src.height);view.z=sc;view.x=(cv.width-src.width*sc)/2;view.y=(cv.height-src.height*sc)/2;}
+function sizeCanvas(){if(!src){return;}var W=Math.min(stageW(),1400);cv.width=W;cv.height=Math.round(W*Math.min(1.25,src.height/src.width));fitView();}
+function stageW(){return Math.round(document.getElementById('stage').clientWidth*(window.devicePixelRatio||1));}
+function loadFile(f){
+  if(!f)return;msg.textContent='Carico la foto…';status('','…');
+  var img=new Image();img.onload=function(){
+    var W=Math.min(img.naturalWidth,2000),H=Math.round(img.naturalHeight*W/img.naturalWidth);
+    var c=document.createElement('canvas');c.width=W;c.height=H;c.getContext('2d').drawImage(img,0,0,W,H);src=c;URL.revokeObjectURL(img.src);
+    sizeCanvas();draw();setTimeout(run,30);};
+  img.onerror=function(){msg.textContent='Foto non leggibile.';};
+  img.src=URL.createObjectURL(f);
+}
+function run(){
+  if(!src)return;var t=cur();msg.textContent='Elaboro…';status('','…');
+  setTimeout(function(){
+    var id=src.getContext('2d').getImageData(0,0,src.width,src.height);
+    var t0=Date.now();res=Core.fitImage(id.data,src.width,src.height,t,opts());
+    maskCv=null;if(res){var m=res.mask1,mc=document.createElement('canvas');mc.width=m.w;mc.height=m.h;var d=mc.getContext('2d').createImageData(m.w,m.h);
+      for(var i=0;i<m.m.length;i++){if(m.m[i]){d.data[i*4]=255;d.data[i*4+1]=40;d.data[i*4+2]=40;d.data[i*4+3]=110;}}mc.getContext('2d').putImageData(d,0,0);maskCv=mc;}
+    report(Date.now()-t0);draw();},20);
+}
+function report(ms){
+  var info=document.getElementById('info');
+  if(!res){status('bad','nessuna sagoma');msg.textContent='Non trovo la sagoma: controlla contrasto e sfondo (prova la soglia o "sagoma scura").';info.textContent='';return;}
+  var q=res.iou,p=res.pose,t=cur();
+  var edge=touches();
+  if(q>=0.95&&!edge){status('ok','Affidabile '+(q*100).toFixed(1)+'%');msg.textContent='Allineata. Tocca un foro per ingrandirlo e segnalo con la penna.';}
+  else if(q>=0.90&&!edge){status('warn','Controlla '+(q*100).toFixed(1)+'%');msg.textContent='Allineamento discreto: verifica che il contorno verde segua la sagoma. Se no, ripeti la foto con luce uniforme e fondo scuro.';}
+  else{status('bad','Non allineato '+(q*100).toFixed(1)+'%');msg.textContent=edge?'La sagoma tocca il bordo della foto: allontana il telefono e riscatta.':'Il contorno non coincide con la sagoma (mani, ombre, altri oggetti o sfondo simile?). I fori sono nascosti: riscatta la foto.';}
+  info.textContent='Scala: '+(p.s).toFixed(1).replace('.',',')+' px/cm (≈ '+(10/p.s).toFixed(2).replace('.',',')+' mm per pixel) · foto '+src.width+'×'+src.height+' · elaborazione '+ms+' ms';
+  buildChips();
+}
+function touches(){ // il contorno trasformato esce dalla foto?
+  var t=cur(),p=res.pose,m=2;
+  for(var i=0;i<t.poly.length;i++){var q=Core.xform(p,t.poly[i][0],t.poly[i][1]);if(q[0]<m||q[1]<m||q[0]>src.width-m||q[1]>src.height-m)return true;}
+  return false;
+}
+function reliable(){return res&&res.iou>=0.85&&!touches();}
+function buildChips(){
+  var box=document.getElementById('chips');box.innerHTML='';var t=cur();var key=t.id;done[key]=done[key]||{};
+  t.holes.forEach(function(h,i){var b=document.createElement('button');b.className='chip'+(done[key][i]?' done':'');b.textContent=h[2]+(done[key][i]?' ✓':'');
+    b.onclick=function(){if(sel===i){done[key][i]=!done[key][i];}else{sel=i;zoomHole(i);}buildChips();draw();};box.appendChild(b);});
+}
+function zoomHole(i){
+  if(!res||!src)return;var h=cur().holes[i],q=Core.xform(res.pose,h[0],h[1]);
+  var z=Math.min(10,cv.width/(7*res.pose.s));view.z=Math.max(z,view.z*0.0+z);view.x=cv.width/2-q[0]*view.z;view.y=cv.height/2-q[1]*view.z;draw();
+}
+function draw(){
+  cx.setTransform(1,0,0,1,0,0);cx.fillStyle='#111';cx.fillRect(0,0,cv.width,cv.height);
+  if(!src){return;}
+  cx.setTransform(view.z,0,0,view.z,view.x,view.y);cx.imageSmoothingQuality='high';cx.drawImage(src,0,0);
+  if(res&&showMask&&maskCv){cx.drawImage(maskCv,0,0,res.mask1.w*res.k1,res.mask1.h*res.k1);}
+  if(!res)return;
+  var t=cur(),p=res.pose,lw=1/view.z;
+  // contorno
+  cx.beginPath();t.poly.forEach(function(v,i){var q=Core.xform(p,v[0],v[1]);if(i)cx.lineTo(q[0],q[1]);else cx.moveTo(q[0],q[1]);});cx.closePath();
+  cx.strokeStyle=reliable()?'rgba(40,220,90,.9)':'rgba(255,80,60,.9)';cx.lineWidth=1.5*lw*(window.devicePixelRatio||1);cx.stroke();
+  if(!reliable())return;
+  var key=t.id;done[key]=done[key]||{};
+  t.holes.forEach(function(h,i){
+    var q=Core.xform(p,h[0],h[1]),r=0.165*p.s,L=Math.max(0.7*p.s,14*lw*(window.devicePixelRatio||1)),col=done[key][i]?'#1fd25a':(i===sel?'#ff3df0':'#d23dff');
+    cx.strokeStyle=col;cx.lineWidth=1.6*lw*(window.devicePixelRatio||1);
+    cx.beginPath();cx.arc(q[0],q[1],r,0,6.2832);cx.stroke();
+    cx.beginPath();cx.moveTo(q[0]-L,q[1]);cx.lineTo(q[0]+L,q[1]);cx.moveTo(q[0],q[1]-L);cx.lineTo(q[0],q[1]+L);cx.stroke();
+    var fs=15*lw*(window.devicePixelRatio||1);cx.font='bold '+fs+'px sans-serif';cx.fillStyle=col;cx.lineWidth=3*lw;cx.strokeStyle='rgba(0,0,0,.7)';
+    cx.strokeText(h[2],q[0]+L*0.35,q[1]-L*0.35);cx.fillText(h[2],q[0]+L*0.35,q[1]-L*0.35);
+  });
+}
+// pan / zoom
+var ptrs={},last=null;
+cv.addEventListener('pointerdown',function(e){cv.setPointerCapture(e.pointerId);ptrs[e.pointerId]=[e.clientX,e.clientY];last=null;});
+cv.addEventListener('pointerup',function(e){delete ptrs[e.pointerId];last=null;});
+cv.addEventListener('pointercancel',function(e){delete ptrs[e.pointerId];last=null;});
+cv.addEventListener('pointermove',function(e){
+  if(!ptrs[e.pointerId])return;var k=Object.keys(ptrs),r=cv.getBoundingClientRect(),f=cv.width/r.width;
+  if(k.length===1){var p=ptrs[e.pointerId];view.x+=(e.clientX-p[0])*f;view.y+=(e.clientY-p[1])*f;ptrs[e.pointerId]=[e.clientX,e.clientY];draw();}
+  else if(k.length===2){
+    var a=ptrs[k[0]],b=ptrs[k[1]];ptrs[e.pointerId]=[e.clientX,e.clientY];a=ptrs[k[0]];b=ptrs[k[1]];
+    var d=Math.hypot(a[0]-b[0],a[1]-b[1]),mx=((a[0]+b[0])/2-r.left)*f,my=((a[1]+b[1])/2-r.top)*f;
+    if(last){var z=view.z*d/last;z=Math.max(0.05,Math.min(40,z));view.x=mx-(mx-view.x)*z/view.z;view.y=my-(my-view.y)*z/view.z;view.z=z;draw();}
+    last=d;}
+});
+cv.addEventListener('wheel',function(e){e.preventDefault();var r=cv.getBoundingClientRect(),f=cv.width/r.width,mx=(e.clientX-r.left)*f,my=(e.clientY-r.top)*f,z=view.z*(e.deltaY<0?1.2:1/1.2);z=Math.max(0.05,Math.min(40,z));view.x=mx-(mx-view.x)*z/view.z;view.y=my-(my-view.y)*z/view.z;view.z=z;draw();},{passive:false});
+document.getElementById('cam').onchange=function(e){loadFile(e.target.files[0]);e.target.value='';};
+document.getElementById('gal').onchange=function(e){loadFile(e.target.files[0]);e.target.value='';};
+document.getElementById('full').onclick=function(){sel=-1;fitView();draw();buildChips();};
+document.getElementById('mask').onclick=function(){showMask=!showMask;this.textContent=showMask?'Nascondi maschera':'Mostra maschera';draw();};
+document.getElementById('redo').onclick=run;
+document.getElementById('thr').onchange=run;
+document.getElementById('flip').onchange=function(){if(src)run();};
+document.getElementById('dark').onchange=function(){if(src)run();};
+pcSel.onchange=function(){sel=-1;res=null;buildChips();if(src)run();else draw();};
+window.addEventListener('resize',function(){if(src){var o=cv.width;sizeCanvas();draw();}});
+// video live (puo' essere bloccato dal visualizzatore)
+document.getElementById('live').onclick=function(){
+  if(live){stopLive();return;}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.textContent='Fotocamera live non disponibile qui: usa "Scatta foto".';return;}
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}}}).then(function(stream){
+    var v=document.createElement('video');v.playsInline=true;v.muted=true;v.srcObject=stream;v.play();
+    live={v:v,stream:stream,busy:false,t:0,lock:false};document.getElementById('live').textContent='Ferma video';
+    var c=document.createElement('canvas');live.c=c;
+    (function loop(){
+      if(!live)return;
+      if(v.videoWidth){var W=Math.min(v.videoWidth,1280),H=Math.round(v.videoHeight*W/v.videoWidth);
+        if(c.width!==W){c.width=W;c.height=H;}c.getContext('2d').drawImage(v,0,0,W,H);src=c;
+        if(cv.width!==stageW()||!live.sized){sizeCanvas();live.sized=true;}
+        var now=Date.now();
+        if(now-live.t>900&&!live.busy){live.busy=true;live.t=now;
+          var id=c.getContext('2d').getImageData(0,0,W,H),r=Core.fitImage(id.data,W,H,cur(),Object.assign(opts(),{coarse:320,fine:W}));
+          if(r&&(r.iou>=0.90||!res||res.iou<0.85)){res=r;report(0);}
+          live.busy=false;}
+        draw();}
+      requestAnimationFrame(loop);})();
+  }).catch(function(){msg.textContent='Il visualizzatore blocca la fotocamera live. Usa "Scatta foto" (apre la fotocamera del telefono) oppure apri la pagina direttamente nel browser.';});
+};
+function stopLive(){if(live){live.stream.getTracks().forEach(function(t){t.stop();});live=null;document.getElementById('live').textContent='Video live';}}
+buildChips();draw();
+</script></body></html>
