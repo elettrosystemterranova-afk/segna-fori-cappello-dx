@@ -7,3 +7,5 @@ pdf-originali/
 *.pdf
 test/video_live.*
 *.y4m
+!docs/*.pdf
+foto_misura.png
