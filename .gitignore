@@ -5,3 +5,5 @@ photo.*
 ui*.png
 pdf-originali/
 *.pdf
+test/video_live.*
+*.y4m
