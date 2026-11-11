@@ -16,6 +16,14 @@ Leggi `README.md` per la struttura dei file.
 - Prima di ogni commit grosso eseguire i test; se falliscono, spiegare perché invece di allentare le soglie.
 - Se una scelta tecnica è dubbia, chiedere prima.
 
+## Salvataggio automatico (solo per questo progetto, deciso dall'utente il 2026-11-11)
+- Serve per provare sul telefono: la fotocamera funziona solo in https, cioè sulla pagina pubblicata da GitHub Pages.
+- Dopo ogni modifica alla pagina (o ai dati) che passa i test, fai commit e push SENZA chiedere conferma, con messaggio chiaro in italiano.
+- Prima di ogni push: `git status`, controllo che non ci siano segreti o file indesiderati (`.env`, token, password, PDF, `pdf-originali/`), `gh auth status` (l'account deve essere `elettrosystemterranova-afk`).
+- Se i test falliscono, se compaiono file strani o segreti, o se cambiano `src/data.json` / le quote delle sagome già presenti: FERMATI e chiedi.
+- Dopo il push dimmi in una riga cosa è stato salvato e ricordami di ricaricare la PWA sul telefono.
+- Questa regola vale solo qui: negli altri progetti resta "mai push di tua iniziativa". Il repository resta pubblico: non rendere pubblico nient'altro e non cambiare la visibilità.
+
 ## Repository
 - GitHub: `elettrosystemterranova-afk/segna-fori-cappello-dx`, PUBBLICO (scelto dall'utente il 2026-11-10: serve per GitHub Pages gratuito, HTTPS per la fotocamera).
 
