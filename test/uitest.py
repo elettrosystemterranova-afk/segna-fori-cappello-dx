@@ -12,7 +12,7 @@ async def main():
         pg=await b.new_page(viewport={'width':420,'height':900},device_scale_factor=2)
         errs=[];pg.on('pageerror',lambda e:errs.append(str(e)));pg.on('console',lambda m:errs.append(m.text) if m.type=='error' else None)
         import pathlib;await pg.goto(pathlib.Path(__file__).resolve().parent.parent.joinpath('docs/index.html').as_uri())
-        await pg.select_option('#pc',label=[o for o in await pg.eval_on_selector_all('#pc option','os=>os.map(o=>o.textContent)') if o.startswith('Foglio 5.1')][0])
+        await pg.select_option('#pc',label=[o for o in await pg.eval_on_selector_all('#pc option','os=>os.map(o=>o.textContent)') if o.startswith('39 ·')][0])
         await pg.set_input_files('#gal','photo.png')
         await pg.wait_for_function("document.getElementById('badge').textContent.length>3 && document.getElementById('badge').textContent!='…'",timeout=60000)
         await pg.wait_for_timeout(500)

@@ -33,7 +33,7 @@ async def main():
             pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' else None)
             await pg.add_init_script("window.__f=0;(function t(){window.__f++;requestAnimationFrame(t)})()")
             await pg.goto('http://localhost:%d/index.html' % PORTA)
-            lab = [o for o in await pg.eval_on_selector_all('#pc option', 'os=>os.map(o=>o.textContent)') if o.startswith('Foglio 5.1')][0]
+            lab = [o for o in await pg.eval_on_selector_all('#pc option', 'os=>os.map(o=>o.textContent)') if o.startswith('39 ·')][0]
             await pg.select_option('#pc', label=lab)
             await pg.click('#live')
             await pg.wait_for_function('live&&live.pose', timeout=30000)

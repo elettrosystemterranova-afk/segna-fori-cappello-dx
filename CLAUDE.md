@@ -38,7 +38,8 @@ Leggi `README.md` per la struttura dei file.
 ## Prossimi passi
 0. L'utente (2026-11-11) NON ha ancora fatto la prova di misura: ha usato il Video live sul telefono vero e ha segnato Braccio DX pt1 (funziona, nessun numero di precisione). Rifarà la prova col foglio con le croci nei prossimi giorni: poi riporta i numeri (medio/massimo, modello app vs prospettiva) e solo allora decidere 4b (ArUco/omografia: prima pro e contro e misure a confronto) e 4c (parallasse dello spessore).
 0b. FATTO (2026-11-11): Cappello DX ora ha come titolo il numero inciso (62 titoli distinti, letti a vista da `tools/numeri_gruppi.json`). Geometria e id invariati (verificato: 0 differenze oltre al campo `t`). Letture meno sicure da ricontrollare col pezzo in mano: "6" (1.1, tratti sparsi), "5-1:1" (21.1) e "4-2:1" (43.1) (etichette piccole vicino alla coda di rondine), "42" (3.1), "3" (19.1), "9-1" (26.2).
-0c. Dopo: PWA (5) può partire anche senza i numeri della prova di misura.
+0c. FATTO (2026-11-11, NON ancora su GitHub, NON provato su telefono): PWA. `docs/manifest.webmanifest`, `docs/sw.js` (rete prima, copia salvata se offline; per forzare l'aggiornamento cambiare `VERSIONE`), icone in `docs/icons/` generate da `tools/genera_icone.py`, registrazione del service worker in fondo a `src/tpl.html`. Provato in Chromium su localhost: SW attivo, 7 file in cache, la pagina si riapre offline. Da fare a mano sul telefono: aprire il sito, menu → "Installa app" / "Aggiungi a Home". Nota: la fotocamera offline funziona, ma i test sul telefono vero non sono fatti.
+0d. FATTO: `test/uitest.py` e `test/livetest.py` cercavano "Foglio 5.1", ora cercano "39 ·" (nuovo titolo della sagoma 5.1 dopo il cambio titoli).
 1. Repo + GitHub Pages
 2. Verifica test (serve Node.js, installato con winget)
 3. Video live (getUserMedia, Web Worker, Wake Lock, torcia)
@@ -47,6 +48,7 @@ Leggi `README.md` per la struttura dei file.
 6. Interfaccia a una mano, pulsanti grandi
 
 ## Decisioni
+- PWA (2026-11-11): service worker "rete prima, cache se offline" (non "cache prima") così gli aggiornamenti di GitHub Pages arrivano subito; icone generate da codice (`tools/genera_icone.py`) invece di file disegnati a mano.
 - Repo pubblico perché GitHub Pages gratuito non serve repo privati.
 - Ogni PDF (coppia CON/SENZA dowel) è un gruppo: pt1 e pt2 restano gruppi separati. Si possono unire in seguito.
 - `pdf-originali/` e `*.pdf` sono nel `.gitignore` (file originali dell'utente, repo pubblico).

@@ -13,4 +13,6 @@ sulla silhouette rilevata, massimizzando l'IoU (src/core.js, JS puro, testabile 
 - `tools/genera_prova_misura.py` crea il foglio `docs/prova-misura-A4.pdf` per la "Prova di misura" (precisione reale); `test/testmisura.js` e `test/uimisura.py` la provano su foto sintetiche
 - `test/mkvideo.py` + `test/livetest.py` provano il video live con la fotocamera finta di Chromium (video sintetico; `NOLOCK=1` per non bloccare la posa)
 
+- PWA: `docs/manifest.webmanifest`, `docs/sw.js` (cache offline), `docs/icons/` (create con `python tools/genera_icone.py`)
+
 Risultati noti: su immagini sintetiche errore max sui fori 0,17 mm (62 sagome). NON ancora misurato su foto reali.

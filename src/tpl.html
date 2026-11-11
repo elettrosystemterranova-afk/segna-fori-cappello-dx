@@ -2,6 +2,13 @@
 <html lang="it"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Segna fori – Cappello DX</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2b2342">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Segna fori">
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:-apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:#f4f3ef;color:#1d1d1b}
 header{padding:12px 14px;background:#2b2342;color:#fff}header h1{margin:0;font-size:17px}header p{margin:2px 0 0;font-size:12px;opacity:.8}
@@ -380,4 +387,8 @@ function misuraMostra(c){
 document.getElementById('mcam').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
 document.getElementById('mgal').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
 buildChips();draw();
+// PWA: registra il service worker (solo su https o localhost; se fallisce l'app funziona lo stesso)
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});
+}
 </script></body></html>
