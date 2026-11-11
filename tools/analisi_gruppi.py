@@ -30,10 +30,11 @@ def forme_pagina(p):
     return sag, fori
 
 
-def analizza(nome):
-    f_con = os.path.join(CARTELLA, nome + ' - CON DOWEL.pdf')
-    f_sen = os.path.join(CARTELLA, nome + ' - SENZA DOWEL.pdf')
+def analizza(file_nome):
+    f_con = os.path.join(CARTELLA, file_nome + ' - CON DOWEL.pdf')
+    f_sen = os.path.join(CARTELLA, file_nome + ' - SENZA DOWEL.pdf')
     dc, ds = fitz.open(f_con), fitz.open(f_sen)
+    nome = file_nome.replace(' Dx', ' DX')  # il file "Mano Dx" diventa il gruppo "Mano DX"
     out = dict(nome=nome, pagine=len(dc), pezzi=[], avvisi=[])
     if len(dc) != len(ds):
         out['avvisi'].append('numero pagine diverso: %d vs %d' % (len(dc), len(ds)))

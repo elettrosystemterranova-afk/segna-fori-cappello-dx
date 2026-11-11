@@ -9,7 +9,8 @@ import sys, os, json, math, pickle, collections
 CM = 72 / 2.54
 RADICE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 GRUPPO_VECCHIO = 'Cappello DX'
-SIGLE = {'Braccio DX pt1': 'dx1', 'Braccio DX pt2': 'dx2', 'Braccio SX pt1': 'sx1', 'Braccio SX pt2': 'sx2'}
+SIGLE = {'Braccio DX pt1': 'dx1', 'Braccio DX pt2': 'dx2', 'Braccio SX pt1': 'sx1', 'Braccio SX pt2': 'sx2',
+          'Cappello SX': 'csx', 'Mano DX': 'mdx', 'Mano SX': 'msx'}
 
 
 def rdp(pts, eps):
