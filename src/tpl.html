@@ -45,14 +45,10 @@ button.on{background:#1b8a3a}
  <div class="chk"><input type="checkbox" id="dark"><span>Sagoma scura su sfondo chiaro</span></div>
 </div>
 <div class="card">
- <label>2. Foto dall'alto</label>
+ <label>3. Inquadra dall'alto</label>
  <div class="row">
-  <label class="btn" for="cam">📷 Scatta foto</label>
-  <label class="btn sec" for="gal">Dalla galleria</label>
-  <button class="sec" id="live">Video live</button>
+  <button class="big" id="live">Video live</button>
  </div>
- <input id="cam" type="file" accept="image/*" capture="environment" hidden>
- <input id="gal" type="file" accept="image/*" hidden>
  <ul class="tips">
   <li>Telefono sul cavalletto, <b>perpendicolare</b> alla sagoma e il più possibile sopra il suo centro.</li>
   <li>Sagoma su un fondo <b>scuro e opaco</b> (cartoncino nero), luce uniforme, niente mani nell'inquadratura.</li>
@@ -61,8 +57,8 @@ button.on{background:#1b8a3a}
  </ul>
 </div>
 <div class="card">
- <div id="stage"><canvas id="view" width="900" height="600"></canvas><div id="badge">nessuna foto</div></div>
- <div id="msg">Scegli la sagoma e scatta una foto.</div>
+ <div id="stage"><canvas id="view" width="900" height="600"></canvas><div id="badge">nessuna immagine</div></div>
+ <div id="msg">Scegli la sagoma e premi Video live.</div>
  <div class="row" id="liveBar" style="margin-top:8px" hidden>
   <button class="big" id="lock">🔒 Blocca posa</button>
   <button class="sec big" id="torch" hidden>🔦 Torcia</button>
@@ -96,8 +92,18 @@ button.on{background:#1b8a3a}
  <ol><li>Tocca un foro (A, B, C…) per ingrandirlo.</li>
  <li>Segna con la penna il centro della croce viola, guardando lo schermo fermo.</li>
  <li>Tocca di nuovo il foro per segnarlo come fatto (diventa verde).</li>
- <li><b>Verifica:</b> scatta un'altra foto dopo aver segnato: i segni a penna devono cadere nei cerchi viola.</li></ol>
+ <li><b>Verifica:</b> dopo aver segnato, fai una foto (scheda "Foto singola" in fondo alla pagina): i segni a penna devono cadere nei cerchi viola.</li></ol>
  <p class="small">Il cerchio viola ha il diametro reale del foro (3,3 mm). La qualità è mostrata in alto: verde = affidabile, arancione = controlla, rosso = non allineato (i fori vengono nascosti).</p></div>
+<div class="card">
+ <label>Foto singola (alternativa al Video live)</label>
+ <p class="small">Per una foto ferma e ad alta risoluzione, o se il Video live non parte. Il risultato è fisso: se sposti la sagoma devi rifare la foto.</p>
+ <div class="row">
+  <label class="btn" for="cam">📷 Scatta foto</label>
+  <label class="btn sec" for="gal">Dalla galleria</label>
+ </div>
+ <input id="cam" type="file" accept="image/*" capture="environment" hidden>
+ <input id="gal" type="file" accept="image/*" hidden>
+</div>
 </main>
 <script>
 /*CORE*/
@@ -260,16 +266,16 @@ function openCamera(){
 }
 liveBtn.onclick=function(){
   if(live){stopLive();return;}
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.textContent='Fotocamera live non disponibile qui (serve https): usa "Scatta foto".';return;}
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){msg.textContent='Fotocamera live non disponibile qui (serve https): usa "Scatta foto" in fondo alla pagina.';return;}
   openCamera().then(startLive).catch(function(e){
-    msg.textContent=(e&&e.name==='NotAllowedError')?'Permesso alla fotocamera negato: abilitalo nelle impostazioni del browser per questo sito e riprova.':'Non riesco ad aprire la fotocamera live ('+(e&&e.name||'errore')+'). Se la pagina è dentro un\'altra app, aprila nel browser. Altrimenti usa "Scatta foto".';});
+    msg.textContent=(e&&e.name==='NotAllowedError')?'Permesso alla fotocamera negato: abilitalo nelle impostazioni del browser per questo sito e riprova.':'Non riesco ad aprire la fotocamera live ('+(e&&e.name||'errore')+'). Se la pagina è dentro un\'altra app, aprila nel browser. Altrimenti usa "Scatta foto" in fondo alla pagina.';});
 };
 function startLive(stream){
   var v=document.createElement('video');v.playsInline=true;v.muted=true;v.setAttribute('playsinline','');v.srcObject=stream;v.play();
   var tr=stream.getVideoTracks()[0],caps=(tr&&tr.getCapabilities)?tr.getCapabilities():{};
   var c=document.createElement('canvas');
   live={v:v,c:c,stream:stream,track:tr,worker:makeWorker(),busy:false,t:0,id:0,locked:false,locking:false,pose:null,iou:0,held:0,score:1,sized:false,torchOn:false,wake:null};
-  liveBtn.textContent='Ferma video';liveBar.hidden=false;updateLockUI();wakeOn();
+  liveBtn.textContent='Ferma video live';liveBar.hidden=false;updateLockUI();wakeOn();
   try{if(caps.focusMode&&caps.focusMode.indexOf('continuous')>=0)tr.applyConstraints({advanced:[{focusMode:'continuous'}]}).catch(function(){});}catch(e){}
   torchBtn.hidden=!caps.torch;torchBtn.className='sec big';
   sel=-1;res=null;showMask=false;maskCv=null;msg.textContent='Inquadra la sagoma dall\'alto e tieni fermo il telefono.';status('','…');
