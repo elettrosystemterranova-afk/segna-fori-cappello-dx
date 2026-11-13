@@ -1,0 +1,4 @@
+Librerie di terzi usate per i codici QR del collegamento tra i due telefoni (non modificate):
+- qrcode.js  = qrcode-generator 2.0.4 (Kazuhiko Arase), licenza MIT (testo nell'intestazione del file). Genera i QR.
+- jsQR.js    = jsQR 1.4.0 (Cozmo), licenza Apache-2.0 (vedi LICENSE-jsQR.txt). Legge i QR dalla fotocamera.
+Scaricate da npm il 2026-11-13. Si caricano solo quando si apre "Secondo telefono".

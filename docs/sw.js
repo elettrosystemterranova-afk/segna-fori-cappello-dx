@@ -1,8 +1,10 @@
 // Service worker: l'app funziona anche senza rete (dopo la prima apertura).
 // Strategia: prima la rete (così gli aggiornamenti arrivano subito), se manca la rete usa la copia salvata.
 // Per forzare un aggiornamento della cache cambia VERSIONE.
-const VERSIONE = 'segna-fori-v1';
+const VERSIONE = 'segna-fori-v2';
 const FILE = [
+  './vendor/qrcode.js',
+  './vendor/jsQR.js',
   './',
   './index.html',
   './manifest.webmanifest',

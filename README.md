@@ -12,6 +12,7 @@ sulla silhouette rilevata, massimizzando l'IoU (src/core.js, JS puro, testabile 
 - `test/test.js` prova su immagini sintetiche: `node test/test.js [id,id,...]` (OCC=3 per simulare una mano)
 - `test/uitest.py` prova la pagina in Chrome headless (Playwright) con una foto sintetica
 - `tools/genera_prova_misura.py` crea il foglio `docs/prova-misura-A4.pdf` per la "Prova di misura" (precisione reale); `test/testmisura.js` e `test/uimisura.py` la provano su foto sintetiche
+- Secondo telefono (telecomando): `src/remoto.js` (WebRTC diretto senza server, codici con QR) + librerie in `docs/vendor/` (vedi `docs/vendor/LEGGIMI.txt`); `test/remototest.py` lo prova con due pagine Chromium
 - `test/mkvideo.py` + `test/livetest.py` provano il video live con la fotocamera finta di Chromium (video sintetico; `NOLOCK=1` per non bloccare la posa)
 
 - PWA: `docs/manifest.webmanifest`, `docs/sw.js` (cache offline), `docs/icons/` (create con `python tools/genera_icone.py`)

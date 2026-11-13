@@ -78,6 +78,29 @@ button.on{background:#1b8a3a}
  <div class="chk"><input type="checkbox" id="flip"><span>Sagoma capovolta (vista dal lato opposto al PDF)</span></div>
  <div class="chk"><input type="checkbox" id="dark"><span>Sagoma scura su sfondo chiaro</span></div>
 </div>
+<details class="card" id="coppia">
+ <summary style="font-weight:700;font-size:15px;cursor:pointer;padding:4px 0">📱 Secondo telefono (telecomando)</summary>
+ <p class="small">Un telefono fa da telecamera (<b>principale</b>, sul cavalletto: fa tutti i calcoli) e l'altro da <b>telecomando</b>: vede il video con i fori. Collegamento diretto tra i due telefoni, senza server: attiva l'<b>hotspot sul principale</b> e collega il telecomando al suo Wi-Fi. Il collegamento si fa con un codice QR.</p>
+ <div class="row" id="rBtns">
+  <button id="rPrinc">Questo è il principale</button>
+  <button class="sec" id="rTele">Questo è il telecomando</button>
+ </div>
+ <div id="rBox" hidden>
+  <p class="small" id="rStep"></p>
+  <div id="rQrBox" hidden>
+   <canvas id="rQr" style="width:100%;max-width:420px;image-rendering:pixelated;background:#fff;border-radius:8px" hidden></canvas>
+   <p class="small" id="rQrInfo"></p>
+  </div>
+  <video id="rScan" playsinline muted hidden style="width:100%;max-width:420px;border-radius:8px;background:#111"></video>
+  <div class="row" style="margin:8px 0"><button class="sec" id="rScanBtn" hidden>📷 Inquadra il codice dell'altro telefono</button></div>
+  <label for="rTxt">Oppure copia / incolla il codice</label>
+  <textarea id="rTxt" rows="3" style="width:100%;font:11px/1.3 monospace;border:1px solid #bbb;border-radius:8px;padding:6px" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+  <div class="row" style="margin-top:6px"><button class="sec" id="rCopia">Copia il mio codice</button><button class="sec" id="rUsa">Usa il codice incollato</button></div>
+ </div>
+ <p class="small" id="rStato" style="font-weight:600"></p>
+ <div id="rVideoBox" hidden><video id="rVideo" autoplay playsinline muted style="width:100%;border-radius:12px;background:#111"></video></div>
+ <div class="row" style="margin-top:6px"><button class="sec" id="rStop" hidden>Scollega</button></div>
+</details>
 <details class="card" id="misura">
  <summary style="font-weight:700;font-size:15px;cursor:pointer;padding:4px 0">📏 Prova di misura (precisione reale)</summary>
  <p class="small">Misura quanto sbaglia davvero il tuo telefono sul tuo cavalletto, fotografando un foglio con croci a distanza nota.</p>
@@ -397,6 +420,7 @@ function misuraMostra(c){
 }
 document.getElementById('mcam').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
 document.getElementById('mgal').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
+/*REMOTO*/
 buildChips();draw();
 // PWA: registra il service worker (solo su https o localhost; se fallisce l'app funziona lo stesso)
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
