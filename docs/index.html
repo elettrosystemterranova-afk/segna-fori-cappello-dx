@@ -1223,9 +1223,10 @@ function rispondi(sdp){
   return pc.setRemoteDescription({type:'offer',sdp:sdp}).then(function(){return pc.createAnswer();}).then(function(a){return pc.setLocalDescription(a);})
     .then(function(){return attendiIce(pc);}).then(function(){
       var r=soloIPv4(pc.localDescription.sdp);log('indirizzi di questo telefono: '+(indirizzi(r).join(', ')||'NESSUNO'));return comprimi('a'+r);}).then(function(codice){
+      stato('✔ Codice del principale letto · sessione '+S.sessione+' · ora tocca al principale (vedi PASSO 2)');
       passo('PASSO 2 di 2 · Sessione '+S.sessione+' (deve essere uguale sul principale). Sul principale premi "Inquadra il codice del telecomando" e fagli leggere questo QR (oppure incolla il codice sul principale).');
       mostra('rScanBtn',false);mostraCodice(codice,'Codice del telecomando');
-      S.to=setTimeout(function(){if(S.pc&&S.pc.connectionState!=='connected'){stato('⏳ Ancora in attesa del principale…');}},20000);
+      S.to=setTimeout(function(){if(S.pc&&S.pc.connectionState!=='connected'){stato('⏳ Ora tocca al principale: deve premere "Inquadra il codice del telecomando" e leggere il QR che vedi qui (o incollare il codice).');}},20000);
     });
 }
 function accettaRisposta(sdp){
