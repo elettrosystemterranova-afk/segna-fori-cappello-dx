@@ -25,6 +25,14 @@ button:disabled{opacity:.4}
 canvas#view{display:block;width:100%;height:auto;touch-action:none}
 #badge{position:absolute;left:8px;top:8px;padding:5px 9px;border-radius:14px;font-size:13px;font-weight:700;color:#fff;background:#666}
 #badge.ok{background:#1b8a3a}#badge.warn{background:#c77a00}#badge.bad{background:#c0392b}
+#rBadge{position:absolute;left:8px;top:8px;padding:5px 9px;border-radius:14px;font-size:13px;font-weight:700;color:#fff;background:#666}
+#rBadge.ok{background:#1b8a3a}#rBadge.warn{background:#c77a00}#rBadge.bad{background:#c0392b}
+/* modalità telecomando: solo la schermata del telecomando (dopo il collegamento) o il collegamento (prima) */
+#teleScreen{display:none}
+body.tele main>*:not(#coppia):not(#teleScreen){display:none}
+body.tele.conn #teleScreen{display:block}
+body.tele.conn #coppia{display:none}
+body.tele header p{display:none}
 #msg{font-size:14px;margin:8px 0 0;line-height:1.4}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .chip{padding:10px 14px;border-radius:20px;background:#efe6fa;color:#5a1e99;font-weight:700;font-size:15px;border:2px solid #a24ee0}
@@ -78,6 +86,31 @@ button.on{background:#1b8a3a}
  <div class="chk"><input type="checkbox" id="flip"><span>Sagoma capovolta (vista dal lato opposto al PDF)</span></div>
  <div class="chk"><input type="checkbox" id="dark"><span>Sagoma scura su sfondo chiaro</span></div>
 </div>
+<section class="card" id="teleScreen">
+ <div class="row" style="margin-bottom:8px">
+  <select id="tGr" style="flex:1 1 38%"></select>
+  <select id="tPc" style="flex:1 1 55%"></select>
+ </div>
+ <div class="chips" id="tChips" style="margin:0 0 8px"></div>
+ <div style="position:relative;background:#111;border-radius:12px;overflow:hidden">
+  <video id="rVideo" autoplay playsinline muted style="width:100%;display:block;min-height:120px"></video>
+  <canvas id="rFrame" width="640" height="400" style="width:100%;height:auto;display:none"></canvas>
+  <div id="rBadge">…</div>
+ </div>
+ <div class="small" id="tMsg" style="margin:6px 0"></div>
+ <div class="row">
+  <button class="big" id="tLive">Video live</button>
+  <button class="big" id="tLock" hidden>🔒 Blocca posa</button>
+ </div>
+ <div class="row" style="margin-top:8px">
+  <button class="sec" id="tTorch" hidden>🔦 Torcia</button>
+  <button class="sec" id="tFull">Vista intera</button>
+  <button class="sec" id="tStop">Scollega</button>
+ </div>
+ <p class="small" id="tSess"></p>
+ <details style="margin-top:4px"><summary style="font-size:12px;color:#666;cursor:pointer">Dettagli tecnici</summary>
+  <pre id="rLog2" style="white-space:pre-wrap;font:10px/1.35 monospace;margin:4px 0 0;color:#333"></pre></details>
+</section>
 <details class="card" id="coppia">
  <summary style="font-weight:700;font-size:15px;cursor:pointer;padding:4px 0">📱 Secondo telefono (telecomando)</summary>
  <p class="small">Un telefono fa da telecamera (<b>principale</b>, sul cavalletto: fa tutti i calcoli) e l'altro da <b>telecomando</b>: vede il video con i fori. Collegamento diretto tra i due telefoni, senza server: attiva l'<b>hotspot sul principale</b> e collega il telecomando al suo Wi-Fi. Il collegamento si fa con un codice QR.</p>
@@ -98,7 +131,6 @@ button.on{background:#1b8a3a}
   <div class="row" style="margin-top:6px"><button class="sec" id="rCopia">Copia il mio codice</button><button class="sec" id="rUsa">Usa il codice incollato</button></div>
  </div>
  <p class="small" id="rStato" style="font-weight:600"></p>
- <div id="rVideoBox" hidden><canvas id="rFrame" width="640" height="400" style="width:100%;height:auto;border-radius:12px;background:#111;display:block"></canvas></div>
  <div class="row" style="margin-top:6px"><button class="sec" id="rStop" hidden>Scollega</button></div>
  <details id="rDett" hidden style="margin-top:8px"><summary style="font-size:12px;color:#666;cursor:pointer">Dettagli tecnici (utili se non si collega)</summary>
   <pre id="rLog" style="white-space:pre-wrap;font:10px/1.35 monospace;margin:4px 0 0;color:#333"></pre></details>
@@ -1008,21 +1040,23 @@ document.getElementById('mcam').onchange=function(e){misuraFile(e.target.files[0
 document.getElementById('mgal').onchange=function(e){misuraFile(e.target.files[0]);e.target.value='';};
 // ===== secondo telefono (telecomando) =====
 // Collegamento diretto tra i due telefoni (WebRTC) SENZA server: nessun STUN/TURN (iceServers vuoto),
-// quindi funziona sulla stessa rete (hotspot del telefono principale). I codici di collegamento
-// (offerta e risposta) si scambiano con un QR o copiando/incollando il testo.
-// Il video NON usa i canali video di WebRTC: il principale manda immagini JPEG su un canale dati.
-// Così il codice di collegamento resta corto (poche centinaia di caratteri: QR facile da leggere).
-// Principale = ha la fotocamera, fa tutti i calcoli e manda il video con i fori. Telecomando = lo guarda.
+// quindi funziona sulla stessa rete (hotspot del telefono principale).
+// 1) Pairing: i codici di collegamento (offerta e risposta) si scambiano con un QR o copia/incolla.
+//    Contengono solo i canali dati (codice corto, QR facile da leggere).
+// 2) Appena collegati, il principale aggiunge il VIDEO (flusso WebRTC dello schermo con i fori) e lo negozia
+//    sul canale già aperto (nessun altro QR). Se il video non parte entro pochi secondi, ripiego: immagini JPEG.
+// 3) Il telecomando mostra una schermata sua (selezione sagoma e fori, un solo video, pulsanti): riceve lo
+//    stato dal principale e gli manda i comandi. Principale = fotocamera + tutti i calcoli.
 (function(){
 var $=function(id){return document.getElementById(id);};
-var S={ruolo:null,pc:null,dcV:null,dcC:null,sessione:'',codice:'',scan:null,scanTimer:0,tick:0,frames:0,sent:0,q:0.72,enc:false,ultimo:null,dis:false,log:[],tmp:null,to:0};
+var S={ruolo:null,pc:null,dcV:null,dcC:null,sessione:'',codice:'',scan:null,scanTimer:0,tick:0,stTick:0,frames:0,sent:0,q:0.72,enc:false,ultimo:null,dis:false,log:[],tmp:null,to:0,toVideo:0,snd:null,vst:null,stJson:'',lock:0,chipsKey:'',wake:null,fallback:false};
 var caricate={};
-var MAXMSG=200000; // dimensione massima di un fotogramma JPEG (byte)
+var MAXMSG=200000; // dimensione massima di un fotogramma JPEG di ripiego (byte)
 
 function log(t){
   var d=new Date(),h=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+':'+('0'+d.getSeconds()).slice(-2);
   S.log.push(h+' '+t);if(S.log.length>40)S.log.shift();
-  var el=$('rLog');if(el)el.textContent=S.log.slice(-14).join('\n');
+  var x=S.log.slice(-14).join('\n');['rLog','rLog2'].forEach(function(i){var el=$(i);if(el)el.textContent=x;});
 }
 function carica(src){
   return new Promise(function(ok,ko){
@@ -1095,21 +1129,66 @@ function attendiIce(pc){
     setTimeout(fine,3500);
   });
 }
+function invia(m){var c=S.dcC;if(c&&c.readyState==='open'){try{c.send(JSON.stringify(m));return true;}catch(e){}}return false;}
 function creaCanali(pc){
-  // canali "concordati": stessi id sui due telefoni, senza altra trattativa
+  // canali "concordati": stessi id sui due telefoni, senza altra trattativa. 0 = immagini di ripiego, 1 = messaggi
   var v=pc.createDataChannel('v',{negotiated:true,id:0}),c=pc.createDataChannel('c',{negotiated:true,id:1});
   v.binaryType='arraybuffer';S.dcV=v;S.dcC=c;
-  v.onopen=function(){log('canale video aperto');if(S.ruolo==='P')avviaInvio();};
-  v.onclose=function(){log('canale video chiuso');};
-  v.onerror=function(){log('canale video: errore');};
-  v.onmessage=function(e){if(S.ruolo==='R'&&typeof e.data!=='string'){S.frames++;S.ultimo=e.data;if(!S.dis){S.dis=true;requestAnimationFrame(mostraFrame);}}};
-  c.onopen=function(){log('canale comandi aperto');collegato();try{c.send(JSON.stringify({t:'ciao',r:S.ruolo}));}catch(e){}};
-  c.onclose=function(){log('canale comandi chiuso');};
-  c.onmessage=function(e){var m;try{m=JSON.parse(e.data);}catch(x){return;}if(typeof S.onmsg==='function')S.onmsg(m);};
+  v.onclose=function(){log('canale immagini chiuso');};
+  v.onmessage=function(e){
+    if(S.ruolo!=='R'||typeof e.data==='string')return;
+    S.frames++;S.ultimo=e.data;
+    if(S.frames===1){S.fallback=true;$('rVideo').style.display='none';$('rFrame').style.display='block';log('ricevo immagini JPEG (ripiego)');}
+    if(!S.dis){S.dis=true;requestAnimationFrame(mostraFrame);}
+  };
+  c.onopen=function(){log('canale messaggi aperto');collegato();invia({t:'ciao',r:S.ruolo});};
+  c.onclose=function(){log('canale messaggi chiuso');};
+  c.onmessage=function(e){var m;try{m=JSON.parse(e.data);}catch(x){return;}gestisci(m);};
 }
 
-// ---- invio del video (principale) e visualizzazione (telecomando) ----
-function avviaInvio(){clearInterval(S.tick);S.tick=setInterval(inviaFrame,90);}
+// ---- video vero: il principale lo aggiunge dopo il collegamento (rinegoziazione sul canale aperto) ----
+function avviaVideo(){
+  var pc=S.pc;if(!pc||S.snd)return;
+  try{
+    S.vst=cv.captureStream(30);var tr=S.vst.getVideoTracks()[0];
+    try{tr.contentHint='detail';}catch(e){}
+    S.snd=pc.addTrack(tr,S.vst);log('video: traccia aggiunta, preparo l\'offerta');
+    pc.createOffer().then(function(o){return pc.setLocalDescription(o);}).then(function(){invia({t:'offer',sdp:pc.localDescription.sdp});log('video: offerta inviata');})
+      .catch(function(e){log('video: errore offerta '+(e&&e.message||e));});
+  }catch(e){log('video: non posso avviarlo ('+(e&&e.message||e)+')');}
+  // tiene vivo il flusso anche a schermo fermo (il canvas manda un fotogramma solo quando cambia)
+  clearInterval(S.tick);S.tick=setInterval(function(){if(!live&&typeof draw==='function')draw();},100);
+}
+function parametriVideo(){
+  try{var pr=S.snd.getParameters();if(!pr.encodings||!pr.encodings.length)pr.encodings=[{}];
+    pr.encodings[0].maxBitrate=4000000;pr.encodings[0].maxFramerate=30;pr.degradationPreference='maintain-resolution';
+    S.snd.setParameters(pr).catch(function(){});}catch(e){}
+}
+function ricevi(sdp){ // telecomando: il principale propone il video
+  var pc=S.pc;log('video: offerta ricevuta');
+  pc.setRemoteDescription({type:'offer',sdp:sdp}).then(function(){return pc.createAnswer();}).then(function(a){return pc.setLocalDescription(a);})
+    .then(function(){invia({t:'answer',sdp:pc.localDescription.sdp});log('video: risposta inviata');})
+    .catch(function(e){log('video: errore risposta '+(e&&e.message||e));});
+}
+function controllaVideo(){ // se dopo qualche secondo il video non scorre, chiede al principale le immagini di ripiego
+  clearTimeout(S.toVideo);
+  S.toVideo=setTimeout(function(){
+    var v=$('rVideo');
+    if(S.ruolo==='R'&&!S.fallback&&!(v.videoWidth>0&&v.currentTime>0)){log('video non partito: chiedo le immagini JPEG');invia({t:'nov'});}
+  },9000);
+}
+function gestisci(m){
+  if(!m||!m.t)return;
+  if(m.t==='offer'&&S.ruolo==='R')ricevi(m.sdp);
+  else if(m.t==='answer'&&S.ruolo==='P'&&S.pc){S.pc.setRemoteDescription({type:'answer',sdp:m.sdp}).then(function(){log('video: collegato');parametriVideo();}).catch(function(e){log('video: errore '+(e&&e.message||e));});}
+  else if(m.t==='nov'&&S.ruolo==='P'){log('il telecomando non vede il video: invio JPEG');avviaInvio();}
+  else if(m.t==='stato'&&S.ruolo==='R')applicaStato(m);
+  else if(m.t==='cmd'&&S.ruolo==='P')eseguiCmd(m);
+  if(typeof S.onmsg==='function')S.onmsg(m);
+}
+
+// ---- ripiego: immagini JPEG sul canale dati ----
+function avviaInvio(){clearInterval(S.stJpg);S.stJpg=setInterval(inviaFrame,90);}
 function inviaFrame(){
   var dc=S.dcV;if(!dc||dc.readyState!=='open'||S.enc||dc.bufferedAmount>250000)return;
   var w=Math.min(cv.width,1000),h=Math.max(1,Math.round(cv.height*w/cv.width)),sorg=cv;
@@ -1118,7 +1197,7 @@ function inviaFrame(){
   sorg.toBlob(function(b){
     if(!b){S.enc=false;return;}
     b.arrayBuffer().then(function(a){
-      if(a.byteLength>MAXMSG){S.q=Math.max(0.35,S.q-0.08);} // troppo grande: abbassa la qualità e salta
+      if(a.byteLength>MAXMSG){S.q=Math.max(0.35,S.q-0.08);}
       else{if(dc.readyState==='open'&&dc.bufferedAmount<250000){dc.send(a);S.sent++;}if(a.byteLength<90000&&S.q<0.8)S.q+=0.02;}
       S.enc=false;
     }).catch(function(){S.enc=false;});
@@ -1132,20 +1211,82 @@ function mostraFrame(){
   }).catch(function(){});
 }
 
+// ---- stato (principale -> telecomando) e comandi (telecomando -> principale) ----
+function statoPrincipale(){
+  var t=cur(),d=done[t.id]||{};
+  return {t:'stato',gr:grSel.value,pc:+pcSel.value,live:!!live,locked:!!(live&&live.locked),locking:!!(live&&live.locking),
+    torch:!!(live&&!torchBtn.hidden),torchOn:!!(live&&live.torchOn),badge:[badge.className,badge.textContent],msg:msg.textContent,
+    holes:t.holes.map(function(h,i){return [h[2],!!d[i]];}),sel:sel};
+}
+function inviaStato(){
+  if(S.ruolo!=='P')return;var s=statoPrincipale(),j=JSON.stringify(s);
+  if(j!==S.stJson&&invia(s))S.stJson=j;
+}
+function eseguiCmd(m){
+  try{
+    if(m.a==='gr'){if(gruppi.indexOf(m.v)>=0){grSel.value=m.v;grSel.onchange();}}
+    else if(m.a==='pc'){var p=DATA[m.v];if(p){if(grSel.value!==p.grp){grSel.value=p.grp;fillPieces();}pcSel.value=String(m.v);pcSel.onchange();}}
+    else if(m.a==='foro'){var b=document.querySelectorAll('#chips .chip')[m.v];if(b)b.click();}
+    else if(m.a==='lock')lockBtn.click();
+    else if(m.a==='live')liveBtn.click();
+    else if(m.a==='torch')torchBtn.click();
+    else if(m.a==='full')$('full').click();
+  }catch(e){log('comando non eseguito: '+(e&&e.message||e));}
+  S.stJson='';inviaStato();
+}
+function riempiGr(){
+  var g=$('tGr');if(g.options.length)return;
+  gruppi.forEach(function(x){var o=document.createElement('option');o.value=x;o.textContent=x;g.appendChild(o);});
+}
+function riempiPc(gr){
+  var p=$('tPc');p.innerHTML='';p.dataset.gr=gr;
+  DATA.forEach(function(x,i){if(x.grp!==gr)return;var o=document.createElement('option');o.value=i;
+    o.textContent=x.t+' · '+x.holes.length+(x.holes.length===1?' foro':' fori');p.appendChild(o);});
+}
+function applicaStato(s){
+  var g=$('tGr'),p=$('tPc');riempiGr();
+  if(Date.now()-S.lock>1500){ // non disturba la scelta appena fatta sul telecomando
+    if(g.value!==s.gr)g.value=s.gr;
+    if(p.dataset.gr!==s.gr)riempiPc(s.gr);
+    if(p.value!==String(s.pc))p.value=String(s.pc);
+  }
+  var key=JSON.stringify([s.pc,s.holes,s.sel]);
+  if(key!==S.chipsKey){
+    S.chipsKey=key;var box=$('tChips');box.innerHTML='';
+    s.holes.forEach(function(h,i){
+      var b=document.createElement('button');b.className='chip'+(h[1]?' done':'');b.textContent=h[0]+(h[1]?' ✓':'');
+      if(i===s.sel)b.style.borderColor='#ff3df0';
+      b.onclick=function(){invia({t:'cmd',a:'foro',v:i});};box.appendChild(b);});
+  }
+  var bd=$('rBadge');bd.className=s.badge[0];bd.textContent=s.badge[1];$('tMsg').textContent=s.msg;
+  var L=$('tLive'),K=$('tLock'),T=$('tTorch');
+  L.textContent=s.live?'Ferma video live':'Video live';L.className='big'+(s.live?' on':'');
+  K.hidden=!s.live;K.textContent=s.locked?'🔓 Sblocca posa':'🔒 Blocca posa';K.className='big'+(s.locked?' on':'');K.disabled=!!s.locking;
+  T.hidden=!s.torch;T.className='sec'+(s.torchOn?' on':'');
+}
+
 // ---- interfaccia ----
 function mostra(el,on){$(el).hidden=!on;}
 function passo(t){$('rStep').textContent=t;}
 function stato(t){$('rStato').textContent=t;}
 function ferma(){
-  clearTimeout(S.to);if(S.pc)S.pc.close();S.pc=null;S.dcV=null;S.dcC=null;S.ruolo=null;S.sessione='';S.codice='';
-  fermaScan();clearInterval(S.tick);S.frames=0;S.sent=0;S.ultimo=null;
-  ['rBox','rVideoBox','rQrBox','rStop','rDett'].forEach(function(i){mostra(i,false);});mostra('rBtns',true);
-  $('rTxt').value='';stato('');S.log=[];$('rLog').textContent='';
+  clearTimeout(S.to);clearTimeout(S.toVideo);if(S.pc)S.pc.close();S.pc=null;S.dcV=null;S.dcC=null;S.ruolo=null;S.sessione='';S.codice='';S.snd=null;S.vst=null;
+  fermaScan();clearInterval(S.tick);clearInterval(S.stTick);clearInterval(S.stJpg);S.frames=0;S.sent=0;S.ultimo=null;S.stJson='';S.chipsKey='';S.fallback=false;
+  if(S.wake){try{S.wake.release();}catch(e){}S.wake=null;}
+  $('rVideo').srcObject=null;$('rVideo').style.display='';$('rFrame').style.display='none';
+  document.body.classList.remove('tele','conn');
+  ['rBox','rQrBox','rStop','rDett'].forEach(function(i){mostra(i,false);});mostra('rBtns',true);
+  $('rTxt').value='';stato('');S.log=[];$('rLog').textContent='';$('rLog2').textContent='';
 }
 function collegato(){
   clearTimeout(S.to);fermaScan();mostra('rBox',false);mostra('rQrBox',false);mostra('rStop',true);
   stato('✅ Collegato · sessione '+S.sessione+(S.ruolo==='P'?' · il telecomando vede il tuo schermo':''));
-  if(S.ruolo==='R')mostra('rVideoBox',true);
+  if(S.ruolo==='R'){
+    document.body.classList.add('conn');$('tSess').textContent='Sessione '+S.sessione;riempiGr();controllaVideo();
+    try{if(navigator.wakeLock)navigator.wakeLock.request('screen').then(function(l){S.wake=l;}).catch(function(){});}catch(e){}
+  }else{
+    setTimeout(avviaVideo,300);clearInterval(S.stTick);S.stTick=setInterval(inviaStato,200);
+  }
 }
 function permessoCamera(){ // senza permesso il browser nasconde l'indirizzo locale e il collegamento può fallire
   return navigator.mediaDevices.getUserMedia({video:true}).then(function(s){s.getTracks().forEach(function(t){t.stop();});});
@@ -1187,7 +1328,7 @@ function scansiona(){
 
 // ---- passi del collegamento ----
 function avviaPrincipale(){
-  S.ruolo='P';mostra('rBtns',false);mostra('rBox',true);mostra('rVideoBox',false);mostra('rScanBtn',false);mostra('rDett',true);mostra('rStop',true);
+  S.ruolo='P';mostra('rBtns',false);mostra('rBox',true);mostra('rScanBtn',false);mostra('rDett',true);mostra('rStop',true);
   passo('Preparo il codice di collegamento…');log('principale: preparo il collegamento');
   permessoCamera().then(function(){
     var pc=S.pc=nuovoPc();creaCanali(pc);
@@ -1202,7 +1343,8 @@ function avviaPrincipale(){
   }).catch(function(e){passo('Non riesco a preparare il collegamento: '+(e&&e.message||e.name||e));});
 }
 function avviaTelecomando(){
-  S.ruolo='R';mostra('rBtns',false);mostra('rBox',true);mostra('rScanBtn',true);mostra('rQrBox',false);mostra('rDett',true);mostra('rStop',true);
+  S.ruolo='R';document.body.classList.add('tele');$('coppia').open=true;
+  mostra('rBtns',false);mostra('rBox',true);mostra('rScanBtn',true);mostra('rQrBox',false);mostra('rDett',true);mostra('rStop',true);
   stato('In attesa del codice del principale');log('telecomando: avviato');
   passo('Sul telefono principale premi "Questo è il principale". Poi inquadra il suo QR con la fotocamera (parte da sola), oppure incolla il suo codice qui sotto.');
   permessoCamera().then(scansiona).catch(function(e){passo('Serve il permesso alla fotocamera per leggere il codice ('+(e&&e.name||'errore')+'). Puoi incollare il codice a mano.');});
@@ -1218,6 +1360,10 @@ function usaCodice(testo){
 }
 function rispondi(sdp){
   var pc=S.pc=nuovoPc();S.sessione=sigla(sdp);creaCanali(pc);
+  pc.ontrack=function(e){
+    var v=$('rVideo');v.srcObject=e.streams[0]||new MediaStream([e.track]);log('video: traccia ricevuta');
+    v.play().catch(function(){});
+  };
   log('codice del principale ricevuto ('+sdp.length+' byte); indirizzi suoi: '+(indirizzi(sdp).join(', ')||'NESSUNO'));
   stato('✔ Codice del principale ricevuto · sessione '+S.sessione);
   return pc.setRemoteDescription({type:'offer',sdp:sdp}).then(function(){return pc.createAnswer();}).then(function(a){return pc.setLocalDescription(a);})
@@ -1242,8 +1388,16 @@ $('rPrinc').onclick=avviaPrincipale;
 $('rTele').onclick=avviaTelecomando;
 $('rScanBtn').onclick=scansiona;
 $('rStop').onclick=ferma;
+$('tStop').onclick=ferma;
 $('rUsa').onclick=function(){var t=$('rTxt').value.trim();if(t&&t!==S.codice)usaCodice(t);else passo('Incolla qui il codice dell\'altro telefono, poi premi "Usa il codice incollato".');};
 $('rCopia').onclick=function(){var t=$('rTxt');t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand('copy');}passo('Codice copiato.');};
+// comandi del telecomando
+$('tGr').onchange=function(){S.lock=Date.now();riempiPc(this.value);invia({t:'cmd',a:'gr',v:this.value});};
+$('tPc').onchange=function(){S.lock=Date.now();invia({t:'cmd',a:'pc',v:+this.value});};
+$('tLive').onclick=function(){invia({t:'cmd',a:'live'});};
+$('tLock').onclick=function(){invia({t:'cmd',a:'lock'});};
+$('tTorch').onclick=function(){invia({t:'cmd',a:'torch'});};
+$('tFull').onclick=function(){invia({t:'cmd',a:'full'});};
 window.addEventListener('pagehide',function(){if(S.pc)S.pc.close();});
 S.usa=usaCodice;window.Remoto=S; // per i test
 })();
