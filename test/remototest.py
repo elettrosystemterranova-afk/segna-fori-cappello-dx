@@ -46,7 +46,7 @@ async def main():
             await P.wait_for_function("document.getElementById('rTxt').value.length>50", timeout=20000)
             codeP = await P.input_value('#rTxt')
             esito('codice del principale pronto', True, '%d caratteri' % len(codeP))
-            esito('codice abbastanza corto per un QR leggibile (<= 1800 caratteri)', len(codeP) <= 1800, len(codeP))
+            esito('codice corto per un QR facile da leggere (<= 700 caratteri)', len(codeP) <= 700, len(codeP))
             # il QR si disegna e si rilegge uguale
             await P.wait_for_function("!document.getElementById('rQr').hidden", timeout=10000)
             await P.add_script_tag(url='vendor/jsQR.js')
@@ -84,25 +84,26 @@ async def main():
             await R.wait_for_function("document.getElementById('rStato').textContent.includes('Collegato')", timeout=30000)
             esito('collegamento stabilito (nessun server)', True, await R.inner_text('#rStato'))
 
-            # 4) il video arriva al telecomando e scorre
-            await R.wait_for_function("(()=>{const v=document.getElementById('rVideo');return v.videoWidth>0&&v.readyState>=2;})()", timeout=30000)
-            t1 = await R.evaluate("document.getElementById('rVideo').currentTime")
+            # 4) i fotogrammi (JPEG su canale dati) arrivano al telecomando e scorrono
+            await R.wait_for_function("Remoto.frames>3", timeout=30000)
+            f1 = await R.evaluate("Remoto.frames")
             await R.wait_for_timeout(1500)
-            t2 = await R.evaluate("document.getElementById('rVideo').currentTime")
-            dim = await R.evaluate("[document.getElementById('rVideo').videoWidth,document.getElementById('rVideo').videoHeight]")
-            esito('il video scorre sul telecomando', t2 > t1 + 0.5, 'currentTime %.2f -> %.2f, %sx%s' % (t1, t2, dim[0], dim[1]))
-            # il fotogramma ricevuto non e' vuoto/nero (contiene il video del principale)
-            media = await R.evaluate("""()=>{const v=document.getElementById('rVideo'),c=document.createElement('canvas');c.width=64;c.height=64;
-                const x=c.getContext('2d');x.drawImage(v,0,0,64,64);const d=x.getImageData(0,0,64,64).data;let s=0,mx=0;for(let i=0;i<d.length;i+=4){s+=d[i]+d[i+1]+d[i+2];}
-                let v2=0,m=s/(d.length/4*3);for(let i=0;i<d.length;i+=4){const g=(d[i]+d[i+1]+d[i+2])/3;v2+=(g-m)*(g-m);}return [m,Math.sqrt(v2/(d.length/4))];}""")
+            f2 = await R.evaluate("Remoto.frames")
+            dim = await R.evaluate("[document.getElementById('rFrame').width,document.getElementById('rFrame').height]")
+            esito('arrivano fotogrammi sul telecomando', f2 > f1 + 5, '%d -> %d in 1,5 s (~%.0f al secondo), immagine %sx%s' % (f1, f2, (f2 - f1) / 1.5, dim[0], dim[1]))
+            media = await R.evaluate("""()=>{const c=document.getElementById('rFrame'),x=c.getContext('2d'),d=x.getImageData(0,0,c.width,c.height).data;
+                let s=0,n=d.length/4;for(let i=0;i<d.length;i+=4){s+=(d[i]+d[i+1]+d[i+2])/3;}const m=s/n;let v2=0;
+                for(let i=0;i<d.length;i+=4){const g=(d[i]+d[i+1]+d[i+2])/3;v2+=(g-m)*(g-m);}return [m,Math.sqrt(v2/n)];}""")
             esito('il fotogramma ricevuto ha immagine (non nero)', media[1] > 5, 'luminosita %.0f, variazione %.0f' % (media[0], media[1]))
+            inviati = await P.evaluate("Remoto.sent")
+            esito('il principale ha inviato fotogrammi', inviati > 5, inviati)
             # i fori disegnati sul principale sono nel flusso: badge del principale
             badge = await P.inner_text('#badge')
             esito('il principale lavora normalmente', 'Affidabile' in badge or 'Controlla' in badge or 'bloccata' in badge.lower() or 'tenuta' in badge.lower(), badge)
 
             # 5) canale dati aperto nei due sensi
-            stCh = await P.evaluate("Remoto.dc&&Remoto.dc.readyState"), await R.evaluate("Remoto.dc&&Remoto.dc.readyState")
-            esito('canale dati aperto', stCh == ('open', 'open'), stCh)
+            stCh = await P.evaluate("[Remoto.dcV.readyState,Remoto.dcC.readyState]"), await R.evaluate("[Remoto.dcV.readyState,Remoto.dcC.readyState]")
+            esito('canali dati aperti', stCh == (['open', 'open'], ['open', 'open']), stCh)
 
             # 6) scollega
             await R.click('#rStop')
